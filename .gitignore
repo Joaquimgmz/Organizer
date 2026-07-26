@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Local database + secrets
+# Keep every SQLite sidecar here: tooling that walks the project (Tailwind's
+# class scanner, for one) honours this file, and the -shm/-wal files are locked
+# while the app is running.
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+.env
+.env.local
+.env*.local
+
+# Misc
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
