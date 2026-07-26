@@ -3,7 +3,6 @@
  * doubles as the migration file for a fresh install.
  */
 export const SCHEMA = /* sql */ `
-PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
