@@ -1,5 +1,5 @@
 import { body, dateStr, fail, json, num, query, str, withUser } from "@/lib/api";
-import { all, get, run, transaction } from "@/lib/db";
+import { all, get, transaction } from "@/lib/db";
 import type {
   Exercise,
   TemplateExercise,
@@ -8,14 +8,14 @@ import type {
 import { addDays, nowIso, today, uid } from "@/lib/utils";
 
 /** Attach exercises to a list of sessions in one extra query. */
-function withExercises(
+async function withExercises(
   userId: string,
   sessions: Omit<WorkoutSession, "exercises">[],
-): WorkoutSession[] {
+): Promise<WorkoutSession[]> {
   if (sessions.length === 0) return [];
 
   const placeholders = sessions.map(() => "?").join(", ");
-  const exercises = all<Exercise>(
+  const exercises = await all<Exercise>(
     `SELECT * FROM workout_exercises WHERE user_id = ? AND session_id IN (${placeholders})
       ORDER BY position, rowid`,
     userId,
@@ -39,7 +39,7 @@ export const GET = withUser(async (user, request) => {
   const to = dateStr(params.get("to"), today());
   const from = dateStr(params.get("from"), addDays(to, -60));
 
-  const rows = all<Omit<WorkoutSession, "exercises">>(
+  const rows = await all<Omit<WorkoutSession, "exercises">>(
     `SELECT id, date, name, muscle_group, notes, created_at
        FROM workout_sessions WHERE user_id = ? AND date BETWEEN ? AND ?
       ORDER BY date DESC, created_at DESC`,
@@ -48,7 +48,7 @@ export const GET = withUser(async (user, request) => {
     to,
   );
 
-  return json({ sessions: withExercises(user.id, rows) });
+  return json({ sessions: await withExercises(user.id, rows) });
 });
 
 export const POST = withUser(async (user, request) => {
@@ -70,7 +70,7 @@ export const POST = withUser(async (user, request) => {
   // Starting from a template copies its exercise list into the new session.
   const templateId = str(input.template_id);
   if (templateId) {
-    const template = get<{
+    const template = await get<{
       name: string;
       muscle_group: string;
       exercises: string;
@@ -94,8 +94,8 @@ export const POST = withUser(async (user, request) => {
   const id = uid("w_");
   const stamp = nowIso();
 
-  transaction(() => {
-    run(
+  await transaction(async ({ run }) => {
+    await run(
       `INSERT INTO workout_sessions (id, user_id, date, name, muscle_group, notes, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       id,
@@ -107,8 +107,9 @@ export const POST = withUser(async (user, request) => {
       stamp,
     );
 
-    exercises.forEach((exercise, index) => {
-      run(
+    let index = 0;
+    for (const exercise of exercises) {
+      await run(
         `INSERT INTO workout_exercises
            (id, session_id, user_id, name, sets, reps, weight, rest_seconds, completed, position)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
@@ -122,7 +123,8 @@ export const POST = withUser(async (user, request) => {
         Math.max(0, Math.round(num(exercise.rest_seconds, 90))),
         index,
       );
-    });
+      index += 1;
+    }
   });
 
   return json({ id }, 201);

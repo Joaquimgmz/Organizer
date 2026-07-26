@@ -13,19 +13,18 @@ import type {
 import { addDays, expandReminders, sum, today } from "@/lib/utils";
 
 /** Consecutive days (ending today) with any logged activity, diary or workout. */
-function currentStreak(userId: string): number {
-  const marked = new Set(
-    all<{ date: string }>(
-      `SELECT DISTINCT date FROM (
-         SELECT date FROM activities      WHERE user_id = ? AND completed = 1
-         UNION SELECT date FROM diary_entries   WHERE user_id = ?
-         UNION SELECT date FROM workout_sessions WHERE user_id = ?
-       )`,
-      userId,
-      userId,
-      userId,
-    ).map((row) => row.date),
+async function currentStreak(userId: string): Promise<number> {
+  const rows = await all<{ date: string }>(
+    `SELECT DISTINCT date FROM (
+       SELECT date FROM activities      WHERE user_id = ? AND completed = 1
+       UNION SELECT date FROM diary_entries   WHERE user_id = ?
+       UNION SELECT date FROM workout_sessions WHERE user_id = ?
+     )`,
+    userId,
+    userId,
+    userId,
   );
+  const marked = new Set(rows.map((row) => row.date));
 
   let streak = 0;
   for (let cursor = today(); marked.has(cursor); cursor = addDays(cursor, -1)) {
@@ -39,14 +38,14 @@ export const GET = withUser(async (user, request) => {
   const day = dateStr(query(request).get("date"), today());
 
   // ── Today's schedule ────────────────────────────────────────────────────
-  const activities = all<Activity>(
+  const activities = await all<Activity>(
     `SELECT * FROM activities WHERE user_id = ? AND date = ? ORDER BY start_time`,
     user.id,
     day,
   );
 
   // ── Upcoming reminders (today + next 7 days) ────────────────────────────
-  const reminderRows = all<Reminder & { completions: string | null }>(
+  const reminderRows = await all<Reminder & { completions: string | null }>(
     `SELECT r.*, (
        SELECT group_concat(date) FROM reminder_completions c WHERE c.reminder_id = r.id
      ) AS completions
@@ -66,7 +65,7 @@ export const GET = withUser(async (user, request) => {
   const todaysReminders = occurrences.filter((o) => o.occurrence_date === day);
 
   // ── Today's workout ─────────────────────────────────────────────────────
-  const sessionRow = get<Omit<WorkoutSession, "exercises">>(
+  const sessionRow = await get<Omit<WorkoutSession, "exercises">>(
     `SELECT id, date, name, muscle_group, notes, created_at
        FROM workout_sessions WHERE user_id = ? AND date = ?
       ORDER BY created_at DESC LIMIT 1`,
@@ -77,7 +76,7 @@ export const GET = withUser(async (user, request) => {
   const workout: WorkoutSession | null = sessionRow
     ? {
         ...sessionRow,
-        exercises: all<Exercise>(
+        exercises: await all<Exercise>(
           `SELECT * FROM workout_exercises WHERE session_id = ? ORDER BY position, rowid`,
           sessionRow.id,
         ),
@@ -85,7 +84,7 @@ export const GET = withUser(async (user, request) => {
     : null;
 
   // ── Most recent diary entry ─────────────────────────────────────────────
-  const diaryRow = get<DiaryEntry & { tags: string }>(
+  const diaryRow = await get<DiaryEntry & { tags: string }>(
     `SELECT * FROM diary_entries WHERE user_id = ? ORDER BY date DESC, created_at DESC LIMIT 1`,
     user.id,
   );
@@ -94,23 +93,23 @@ export const GET = withUser(async (user, request) => {
     : null;
 
   // ── Finance ─────────────────────────────────────────────────────────────
-  const facts = financeFacts(user.id, day);
-  const spentToday =
-    get<{ total: number | null }>(
-      `SELECT SUM(amount) AS total FROM expenses WHERE user_id = ? AND date = ?`,
-      user.id,
-      day,
-    )?.total ?? 0;
+  const facts = await financeFacts(user.id, day);
+  const spentTodayRow = await get<{ total: number | null }>(
+    `SELECT SUM(amount) AS total FROM expenses WHERE user_id = ? AND date = ?`,
+    user.id,
+    day,
+  );
+  const spentToday = spentTodayRow?.total ?? 0;
 
   // ── Fitness ─────────────────────────────────────────────────────────────
   const fitness =
-    get<FitnessDay>(
+    (await get<FitnessDay>(
       `SELECT date, provider, steps, calories, distance_km, active_minutes, resting_hr, workout_count
          FROM fitness_daily WHERE user_id = ? AND date <= ?
         ORDER BY date DESC LIMIT 1`,
       user.id,
       day,
-    ) ?? null;
+    )) ?? null;
 
   // ── Progress score for the day ──────────────────────────────────────────
   const activitiesDone = activities.filter((a) => a.completed === 1).length;
@@ -159,7 +158,7 @@ export const GET = withUser(async (user, request) => {
       budget_ok: budgetOk,
       score: parts.length > 0 ? Math.round((sum(parts) / parts.length) * 100) : 0,
     },
-    streak: currentStreak(user.id),
+    streak: await currentStreak(user.id),
   };
 
   return json(data);

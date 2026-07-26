@@ -6,8 +6,8 @@ import { nowIso, today, uid } from "@/lib/utils";
 type GoalRow = Omit<SavingsGoal, "contributions">;
 
 /** Goals with their contribution history attached in one extra query. */
-export function loadGoals(userId: string): SavingsGoal[] {
-  const goals = all<GoalRow>(
+export async function loadGoals(userId: string): Promise<SavingsGoal[]> {
+  const goals = await all<GoalRow>(
     `SELECT id, title, target_amount, target_date, notes, created_at
        FROM savings_goals WHERE user_id = ? ORDER BY created_at`,
     userId,
@@ -15,7 +15,7 @@ export function loadGoals(userId: string): SavingsGoal[] {
   if (goals.length === 0) return [];
 
   const placeholders = goals.map(() => "?").join(", ");
-  const contributions = all<GoalContribution>(
+  const contributions = await all<GoalContribution>(
     `SELECT id, goal_id, amount, date, note, created_at
        FROM goal_contributions
       WHERE user_id = ? AND goal_id IN (${placeholders})
@@ -36,7 +36,9 @@ export function loadGoals(userId: string): SavingsGoal[] {
   }));
 }
 
-export const GET = withUser(async (user) => json({ goals: loadGoals(user.id) }));
+export const GET = withUser(async (user) =>
+  json({ goals: await loadGoals(user.id) }),
+);
 
 export const POST = withUser(async (user, request) => {
   const input = await body<Record<string, unknown>>(request);
@@ -55,7 +57,7 @@ export const POST = withUser(async (user, request) => {
   }
 
   const id = uid("g_");
-  run(
+  await run(
     `INSERT INTO savings_goals (id, user_id, title, target_amount, target_date, notes, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     id,
@@ -70,7 +72,7 @@ export const POST = withUser(async (user, request) => {
   // An amount already put aside is recorded as the first contribution.
   const saved = Math.round(Math.max(0, num(input.saved_amount)) * 100) / 100;
   if (saved > 0) {
-    run(
+    await run(
       `INSERT INTO goal_contributions (id, goal_id, user_id, amount, date, note, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       uid("gc_"),

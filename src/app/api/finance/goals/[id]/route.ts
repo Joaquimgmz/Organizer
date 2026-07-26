@@ -25,7 +25,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("Set a target amount greater than zero.");
   }
 
-  if (applyUpdates("savings_goals", id, user.id, updates) === 0) {
+  if ((await applyUpdates("savings_goals", id, user.id, updates)) === 0) {
     return fail("Goal not found.", 404);
   }
   return json({ ok: true });
@@ -34,7 +34,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
   // goal_contributions cascades.
-  if (deleteRow("savings_goals", id, user.id) === 0) {
+  if ((await deleteRow("savings_goals", id, user.id)) === 0) {
     return fail("Goal not found.", 404);
   }
   return json({ ok: true });

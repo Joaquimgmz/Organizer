@@ -32,7 +32,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("The entry can't be empty.");
   }
 
-  const changed = applyUpdates("diary_entries", id, user.id, {
+  const changed = await applyUpdates("diary_entries", id, user.id, {
     ...updates,
     updated_at: nowIso(),
   });
@@ -43,7 +43,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
-  if (deleteRow("diary_entries", id, user.id) === 0) {
+  if ((await deleteRow("diary_entries", id, user.id)) === 0) {
     return fail("Entry not found.", 404);
   }
   return json({ ok: true });

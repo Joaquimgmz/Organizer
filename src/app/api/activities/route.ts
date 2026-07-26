@@ -18,7 +18,7 @@ export const GET = withUser(async (user, request) => {
   const from = dateStr(params.get("from"), today());
   const to = dateStr(params.get("to"), from);
 
-  const activities = all<Activity>(
+  const activities = await all<Activity>(
     `SELECT * FROM activities WHERE user_id = ? AND date BETWEEN ? AND ?
       ORDER BY date, start_time`,
     user.id,
@@ -40,7 +40,7 @@ export const POST = withUser(async (user, request) => {
   if (end <= start) return fail("The end time has to be after the start time.");
 
   const id = uid("a_");
-  run(
+  await run(
     `INSERT INTO activities (id, user_id, date, title, category, start_time, end_time, notes, completed, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     id,

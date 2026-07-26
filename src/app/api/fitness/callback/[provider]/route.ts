@@ -41,7 +41,7 @@ export async function GET(request: Request, { params }: Ctx) {
   const state = url.searchParams.get("state");
   if (!code || !state) return back("error", provider, "Missing code or state");
 
-  const pending = consumeState(state, provider);
+  const pending = await consumeState(state, provider);
   if (!pending) {
     return back("error", provider, "That authorisation link expired — try again");
   }
@@ -54,7 +54,7 @@ export async function GET(request: Request, { params }: Ctx) {
 
   try {
     const token = await exchangeCode(provider, code, pending.code_verifier);
-    saveConnection(user.id, provider, token, false);
+    await saveConnection(user.id, provider, token, false);
     await syncProvider(user.id, provider, 14);
     return back("connected", provider);
   } catch (caught) {

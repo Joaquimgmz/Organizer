@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
   if (!email || !password) return fail("Enter your email and password.");
 
-  const user = get<{
+  const user = await get<{
     id: string;
     email: string;
     name: string;

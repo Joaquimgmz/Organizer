@@ -18,14 +18,15 @@ const REPEATS = ["none", "daily", "weekly", "monthly"] as const;
 
 type Row = Reminder & { completions: string | null };
 
-function loadReminders(userId: string): Reminder[] {
-  return all<Row>(
+async function loadReminders(userId: string): Promise<Reminder[]> {
+  const rows = await all<Row>(
     `SELECT r.*, (
        SELECT group_concat(date) FROM reminder_completions c WHERE c.reminder_id = r.id
      ) AS completions
      FROM reminders r WHERE r.user_id = ? ORDER BY r.date, r.time`,
     userId,
-  ).map((row) => ({
+  );
+  return rows.map((row) => ({
     ...row,
     completions: row.completions ? row.completions.split(",") : [],
   }));
@@ -38,7 +39,7 @@ function loadReminders(userId: string): Reminder[] {
  */
 export const GET = withUser(async (user, request) => {
   const params = query(request);
-  const reminders = loadReminders(user.id);
+  const reminders = await loadReminders(user.id);
 
   const from = params.get("from");
   if (!from) return json({ reminders });
@@ -59,7 +60,7 @@ export const POST = withUser(async (user, request) => {
   if (!title) return fail("Give the reminder a title.");
 
   const id = uid("r_");
-  run(
+  await run(
     `INSERT INTO reminders (id, user_id, date, time, title, description, priority, repeat_rule, completed, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     id,

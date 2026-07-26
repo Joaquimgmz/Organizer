@@ -9,21 +9,23 @@ const DEFAULTS: FinanceSettings = {
   currency: "USD",
 };
 
-function read(userId: string): FinanceSettings {
+async function read(userId: string): Promise<FinanceSettings> {
   return (
-    get<FinanceSettings>(
+    (await get<FinanceSettings>(
       `SELECT monthly_income, monthly_limit, savings_goal, currency
          FROM finance_settings WHERE user_id = ?`,
       userId,
-    ) ?? DEFAULTS
+    )) ?? DEFAULTS
   );
 }
 
-export const GET = withUser(async (user) => json({ settings: read(user.id) }));
+export const GET = withUser(async (user) =>
+  json({ settings: await read(user.id) }),
+);
 
 export const PUT = withUser(async (user, request) => {
   const input = await body<Record<string, unknown>>(request);
-  const current = read(user.id);
+  const current = await read(user.id);
 
   const settings: FinanceSettings = {
     monthly_income: Math.max(
@@ -37,7 +39,7 @@ export const PUT = withUser(async (user, request) => {
       current.currency,
   };
 
-  run(
+  await run(
     `INSERT INTO finance_settings (user_id, monthly_income, monthly_limit, savings_goal, currency)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET

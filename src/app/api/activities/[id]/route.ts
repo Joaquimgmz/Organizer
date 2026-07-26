@@ -39,7 +39,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("The end time has to be after the start time.");
   }
 
-  const changed = applyUpdates("activities", id, user.id, updates);
+  const changed = await applyUpdates("activities", id, user.id, updates);
   if (changed === 0) return fail("Activity not found.", 404);
 
   return json({ ok: true });
@@ -47,7 +47,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
-  if (deleteRow("activities", id, user.id) === 0) {
+  if ((await deleteRow("activities", id, user.id)) === 0) {
     return fail("Activity not found.", 404);
   }
   return json({ ok: true });

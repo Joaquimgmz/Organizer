@@ -66,7 +66,7 @@ export async function createSession(userId: string) {
   const id = uid("s_");
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
 
-  run(
+  await run(
     `INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
     id,
     userId,
@@ -90,7 +90,7 @@ export async function destroySession() {
 
   if (token) {
     const id = verifyToken(token);
-    if (id) run(`DELETE FROM sessions WHERE id = ?`, id);
+    if (id) await run(`DELETE FROM sessions WHERE id = ?`, id);
   }
 
   store.delete(COOKIE);
@@ -105,21 +105,21 @@ export async function currentUser(): Promise<User | null> {
   const id = verifyToken(token);
   if (!id) return null;
 
-  const row = get<{ user_id: string; expires_at: string }>(
+  const row = await get<{ user_id: string; expires_at: string }>(
     `SELECT user_id, expires_at FROM sessions WHERE id = ?`,
     id,
   );
   if (!row) return null;
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
-    run(`DELETE FROM sessions WHERE id = ?`, id);
+    await run(`DELETE FROM sessions WHERE id = ?`, id);
     return null;
   }
 
   return (
-    get<User>(
+    (await get<User>(
       `SELECT id, email, name, created_at FROM users WHERE id = ?`,
       row.user_id,
-    ) ?? null
+    )) ?? null
   );
 }

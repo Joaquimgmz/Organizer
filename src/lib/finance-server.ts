@@ -23,20 +23,23 @@ export type FinanceFacts = {
   expenseCount: number;
 };
 
-export function financeFacts(userId: string, day = today()): FinanceFacts {
+export async function financeFacts(
+  userId: string,
+  day = today(),
+): Promise<FinanceFacts> {
   const settings =
-    get<FinanceSettings>(
+    (await get<FinanceSettings>(
       `SELECT monthly_income, monthly_limit, savings_goal, currency
          FROM finance_settings WHERE user_id = ?`,
       userId,
-    ) ?? {
+    )) ?? {
       monthly_income: 0,
       monthly_limit: 0,
       savings_goal: 0,
       currency: "USD",
     };
 
-  const expenses = all<Expense>(
+  const expenses = await all<Expense>(
     `SELECT * FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?`,
     userId,
     startOfMonth(day),

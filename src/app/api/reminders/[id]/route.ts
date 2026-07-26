@@ -34,7 +34,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("Give the reminder a title.");
   }
 
-  const changed = applyUpdates("reminders", id, user.id, updates);
+  const changed = await applyUpdates("reminders", id, user.id, updates);
   if (changed === 0) return fail("Reminder not found.", 404);
 
   return json({ ok: true });
@@ -42,7 +42,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
-  if (deleteRow("reminders", id, user.id) === 0) {
+  if ((await deleteRow("reminders", id, user.id)) === 0) {
     return fail("Reminder not found.", 404);
   }
   return json({ ok: true });

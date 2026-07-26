@@ -9,8 +9,8 @@ import { clearUserData, seedDemoData } from "@/lib/demo";
 export const POST = withUser(async (user, request) => {
   const input = await body<{ reseed?: boolean }>(request);
 
-  clearUserData(user.id);
-  if (input.reseed !== false) seedDemoData(user.id);
+  await clearUserData(user.id);
+  if (input.reseed !== false) await seedDemoData(user.id);
 
   return json({ ok: true, reseeded: input.reseed !== false });
 });

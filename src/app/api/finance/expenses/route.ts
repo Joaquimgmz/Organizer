@@ -9,7 +9,7 @@ import {
   str,
   withUser,
 } from "@/lib/api";
-import { all, run, transaction } from "@/lib/db";
+import { all, run as dbRun, transaction } from "@/lib/db";
 import { EXPENSE_CATEGORIES, type Expense } from "@/lib/types";
 import { endOfMonth, nowIso, startOfMonth, today, uid } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export const GET = withUser(async (user, request) => {
   const from = dateStr(params.get("from"), startOfMonth(month));
   const to = dateStr(params.get("to"), endOfMonth(month));
 
-  const expenses = all<Expense>(
+  const expenses = await all<Expense>(
     `SELECT * FROM expenses WHERE user_id = ? AND date BETWEEN ? AND ?
       ORDER BY date DESC, created_at DESC`,
     user.id,
@@ -27,7 +27,7 @@ export const GET = withUser(async (user, request) => {
     to,
   );
 
-  const byCategory = all<{ category: string; total: number }>(
+  const byCategory = await all<{ category: string; total: number }>(
     `SELECT category, SUM(amount) AS total FROM expenses
       WHERE user_id = ? AND date BETWEEN ? AND ?
       GROUP BY category ORDER BY total DESC`,
@@ -36,7 +36,7 @@ export const GET = withUser(async (user, request) => {
     to,
   );
 
-  const byDay = all<{ date: string; total: number }>(
+  const byDay = await all<{ date: string; total: number }>(
     `SELECT date, SUM(amount) AS total FROM expenses
       WHERE user_id = ? AND date BETWEEN ? AND ?
       GROUP BY date ORDER BY date`,
@@ -55,9 +55,14 @@ type Incoming = {
   amount?: unknown;
 };
 
-function insert(userId: string, input: Incoming) {
+/** `run` defaults to the top-level connection; pass a transaction-scoped one for batches. */
+async function insert(
+  userId: string,
+  input: Incoming,
+  run: typeof dbRun = dbRun,
+): Promise<string> {
   const id = uid("e_");
-  run(
+  await run(
     `INSERT INTO expenses (id, user_id, date, description, category, amount, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     id,
@@ -82,10 +87,16 @@ export const POST = withUser(async (user, request) => {
     const rows = input.expenses.filter((row) => num(row.amount) > 0);
     if (rows.length === 0) return fail("No valid expenses in that batch.");
 
-    const ids = transaction(() => rows.map((row) => insert(user.id, row)));
+    const ids = await transaction(async ({ run }) => {
+      const inserted: string[] = [];
+      for (const row of rows) {
+        inserted.push(await insert(user.id, row, run));
+      }
+      return inserted;
+    });
     return json({ ids, count: ids.length }, 201);
   }
 
   if (num(input.amount) <= 0) return fail("Enter an amount greater than zero.");
-  return json({ id: insert(user.id, input) }, 201);
+  return json({ id: await insert(user.id, input) }, 201);
 });

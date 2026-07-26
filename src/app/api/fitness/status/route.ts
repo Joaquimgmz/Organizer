@@ -15,24 +15,26 @@ export const GET = withUser(async (user, request) => {
   const days = Math.min(90, Math.max(7, Number(query(request).get("days")) || 14));
   const since = addDays(today(), -(days - 1));
 
-  const providers = PROVIDERS.map((provider) => {
-    const config = providerConfig(provider);
-    const connection = getConnection(user.id, provider);
+  const providers = await Promise.all(
+    PROVIDERS.map(async (provider) => {
+      const config = providerConfig(provider);
+      const connection = await getConnection(user.id, provider);
 
-    return {
-      provider,
-      label: config.label,
-      note: config.note,
-      scope: config.scope,
-      configured: isConfigured(provider),
-      connected: Boolean(connection),
-      demo: connection?.demo === 1,
-      expires_at: connection?.expires_at ?? null,
-      redirect_uri: redirectUri(provider),
-    };
-  });
+      return {
+        provider,
+        label: config.label,
+        note: config.note,
+        scope: config.scope,
+        configured: isConfigured(provider),
+        connected: Boolean(connection),
+        demo: connection?.demo === 1,
+        expires_at: connection?.expires_at ?? null,
+        redirect_uri: redirectUri(provider),
+      };
+    }),
+  );
 
-  const daily = all<FitnessDay>(
+  const daily = await all<FitnessDay>(
     `SELECT date, provider, steps, calories, distance_km, active_minutes, resting_hr, workout_count
        FROM fitness_daily WHERE user_id = ? AND date >= ? ORDER BY date`,
     user.id,

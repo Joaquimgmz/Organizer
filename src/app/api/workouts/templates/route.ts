@@ -29,10 +29,11 @@ function cleanExercises(value: unknown): TemplateExercise[] {
 }
 
 export const GET = withUser(async (user) => {
-  const templates = all<Row>(
+  const rows = await all<Row>(
     `SELECT * FROM workout_templates WHERE user_id = ? ORDER BY name`,
     user.id,
-  ).map((row) => ({
+  );
+  const templates = rows.map((row) => ({
     ...row,
     exercises: JSON.parse(row.exercises || "[]") as TemplateExercise[],
   }));
@@ -50,7 +51,7 @@ export const POST = withUser(async (user, request) => {
   if (exercises.length === 0) return fail("Add at least one exercise.");
 
   const id = uid("t_");
-  run(
+  await run(
     `INSERT INTO workout_templates (id, user_id, name, muscle_group, exercises, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
     id,

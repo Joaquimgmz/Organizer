@@ -17,7 +17,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     position: (v) => Math.max(0, Math.round(num(v, 0))),
   });
 
-  const changed = applyUpdates("workout_exercises", id, user.id, updates);
+  const changed = await applyUpdates("workout_exercises", id, user.id, updates);
   if (changed === 0) return fail("Exercise not found.", 404);
 
   return json({ ok: true });
@@ -25,7 +25,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
-  if (deleteRow("workout_exercises", id, user.id) === 0) {
+  if ((await deleteRow("workout_exercises", id, user.id)) === 0) {
     return fail("Exercise not found.", 404);
   }
   return json({ ok: true });

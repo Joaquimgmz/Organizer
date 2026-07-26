@@ -15,7 +15,7 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
   const { id } = await params;
   const input = await body<{ date?: string; completed?: boolean }>(request);
 
-  const reminder = get<{ repeat_rule: string }>(
+  const reminder = await get<{ repeat_rule: string }>(
     `SELECT repeat_rule FROM reminders WHERE id = ? AND user_id = ?`,
     id,
     user.id,
@@ -26,20 +26,20 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
   const completed = input.completed !== false;
 
   if (reminder.repeat_rule === "none") {
-    run(
+    await run(
       `UPDATE reminders SET completed = ? WHERE id = ? AND user_id = ?`,
       completed ? 1 : 0,
       id,
       user.id,
     );
   } else if (completed) {
-    run(
+    await run(
       `INSERT OR IGNORE INTO reminder_completions (reminder_id, date) VALUES (?, ?)`,
       id,
       date,
     );
   } else {
-    run(
+    await run(
       `DELETE FROM reminder_completions WHERE reminder_id = ? AND date = ?`,
       id,
       date,

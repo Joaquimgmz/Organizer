@@ -7,10 +7,11 @@ export const POST = withUser(async (user, request) => {
   const input = await body<{ provider?: string; days?: number }>(request);
   const days = Math.min(60, Math.max(1, Math.round(Number(input.days) || 14)));
 
-  const connected = all<{ provider: FitnessProvider }>(
+  const connectedRows = await all<{ provider: FitnessProvider }>(
     `SELECT provider FROM fitness_connections WHERE user_id = ?`,
     user.id,
-  ).map((row) => row.provider);
+  );
+  const connected = connectedRows.map((row) => row.provider);
 
   const targets =
     input.provider === "fitbit" || input.provider === "google"

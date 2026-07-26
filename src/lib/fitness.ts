@@ -77,10 +77,10 @@ export function isConfigured(provider: FitnessProvider): boolean {
 
 // ── Authorisation ────────────────────────────────────────────────────────────
 
-export function buildAuthorizeUrl(
+export async function buildAuthorizeUrl(
   provider: FitnessProvider,
   userId: string,
-): string {
+): Promise<string> {
   const config = providerConfig(provider);
   const state = crypto.randomBytes(16).toString("hex");
 
@@ -106,7 +106,7 @@ export function buildAuthorizeUrl(
     params.set("include_granted_scopes", "true");
   }
 
-  run(
+  await run(
     `INSERT INTO oauth_states (state, user_id, provider, code_verifier, created_at)
      VALUES (?, ?, ?, ?, ?)`,
     state,
@@ -119,8 +119,12 @@ export function buildAuthorizeUrl(
   return `${config.authorizeUrl}?${params}`;
 }
 
-export function consumeState(state: string, provider: FitnessProvider) {
-  const row = get<{ user_id: string; code_verifier: string; created_at: string }>(
+export async function consumeState(state: string, provider: FitnessProvider) {
+  const row = await get<{
+    user_id: string;
+    code_verifier: string;
+    created_at: string;
+  }>(
     `SELECT user_id, code_verifier, created_at FROM oauth_states
       WHERE state = ? AND provider = ?`,
     state,
@@ -128,7 +132,7 @@ export function consumeState(state: string, provider: FitnessProvider) {
   );
   if (!row) return null;
 
-  run(`DELETE FROM oauth_states WHERE state = ?`, state);
+  await run(`DELETE FROM oauth_states WHERE state = ?`, state);
 
   // 10-minute window for the round trip.
   if (Date.now() - new Date(row.created_at).getTime() > 600_000) return null;
@@ -186,7 +190,7 @@ export async function exchangeCode(
   return (await response.json()) as TokenResponse;
 }
 
-export function saveConnection(
+export async function saveConnection(
   userId: string,
   provider: FitnessProvider,
   token: TokenResponse,
@@ -196,7 +200,7 @@ export function saveConnection(
     Date.now() + (token.expires_in ?? 28_800) * 1000,
   ).toISOString();
 
-  run(
+  await run(
     `INSERT INTO fitness_connections
        (id, user_id, provider, access_token, refresh_token, expires_at, scope, demo, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -225,10 +229,10 @@ type Connection = {
   demo: number;
 };
 
-export function getConnection(
+export async function getConnection(
   userId: string,
   provider: FitnessProvider,
-): Connection | undefined {
+): Promise<Connection | undefined> {
   return get<Connection>(
     `SELECT access_token, refresh_token, expires_at, demo
        FROM fitness_connections WHERE user_id = ? AND provider = ?`,
@@ -282,7 +286,7 @@ async function freshToken(
   }
 
   const token = (await response.json()) as TokenResponse;
-  saveConnection(userId, provider, {
+  await saveConnection(userId, provider, {
     ...token,
     refresh_token: token.refresh_token ?? connection.refresh_token,
   });
@@ -469,7 +473,7 @@ export async function syncProvider(
   provider: FitnessProvider,
   days = 14,
 ): Promise<{ synced: number; demo: boolean }> {
-  const connection = getConnection(userId, provider);
+  const connection = await getConnection(userId, provider);
   if (!connection) throw new Error(`${provider} is not connected.`);
 
   const end = today();
@@ -502,7 +506,7 @@ export async function syncProvider(
 
   const stamp = nowIso();
   for (const day of metrics) {
-    run(
+    await run(
       `INSERT INTO fitness_daily
          (id, user_id, provider, date, steps, calories, distance_km, active_minutes, resting_hr, workout_count, synced_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

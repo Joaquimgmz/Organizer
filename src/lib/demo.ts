@@ -1,4 +1,4 @@
-import { run, transaction } from "./db";
+import { transaction } from "./db";
 import { addDays, addMonths, nowIso, startOfMonth, today, uid } from "./utils";
 
 /**
@@ -6,11 +6,11 @@ import { addDays, addMonths, nowIso, startOfMonth, today, uid } from "./utils";
  * something to show before the user has typed anything. Called on signup and
  * from POST /api/demo.
  */
-export function seedDemoData(userId: string) {
+export async function seedDemoData(userId: string) {
   const t = today();
   const stamp = nowIso();
 
-  transaction(() => {
+  await transaction(async ({ run }) => {
     // ── Routine: a full weekday, plus lighter days around it ────────────────
     const routine: [string, string, string, string, string][] = [
       // [dayOffset, title, category, start, end] — offset applied below
@@ -31,7 +31,7 @@ export function seedDemoData(userId: string) {
     ];
 
     for (const [offset, title, category, start, end] of routine) {
-      run(
+      await run(
         `INSERT INTO activities (id, user_id, date, title, category, start_time, end_time, notes, completed, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?)`,
         uid("a_"),
@@ -80,7 +80,7 @@ export function seedDemoData(userId: string) {
 
     for (const [offset, title, content, mood, tags] of diary) {
       const date = addDays(t, offset);
-      run(
+      await run(
         `INSERT INTO diary_entries (id, user_id, date, title, content, mood, tags, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         uid("d_"),
@@ -130,7 +130,7 @@ export function seedDemoData(userId: string) {
     ];
 
     for (const [offset, time, title, description, priority, repeat] of reminders) {
-      run(
+      await run(
         `INSERT INTO reminders (id, user_id, date, time, title, description, priority, repeat_rule, completed, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
         uid("r_"),
@@ -146,7 +146,7 @@ export function seedDemoData(userId: string) {
     }
 
     // ── Finance ─────────────────────────────────────────────────────────────
-    run(
+    await run(
       `INSERT INTO finance_settings (user_id, monthly_income, monthly_limit, savings_goal, currency)
        VALUES (?, 3200, 2400, 500, 'USD')
        ON CONFLICT(user_id) DO UPDATE SET
@@ -187,7 +187,7 @@ export function seedDemoData(userId: string) {
     for (const [offset, description, category, amount] of expenses) {
       const date = addDays(monthStart, offset);
       if (date > t) continue; // don't seed spending in the future
-      run(
+      await run(
         `INSERT INTO expenses (id, user_id, date, description, category, amount, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         uid("e_"),
@@ -244,7 +244,7 @@ export function seedDemoData(userId: string) {
 
     for (const [title, target, monthsAhead, notes, contributions] of goals) {
       const goalId = uid("g_");
-      run(
+      await run(
         `INSERT INTO savings_goals (id, user_id, title, target_amount, target_date, notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         goalId,
@@ -257,7 +257,7 @@ export function seedDemoData(userId: string) {
       );
 
       for (const [monthsAgo, amount] of contributions) {
-        run(
+        await run(
           `INSERT INTO goal_contributions (id, goal_id, user_id, amount, date, note, created_at)
            VALUES (?, ?, ?, ?, ?, '', ?)`,
           uid("gc_"),
@@ -315,7 +315,7 @@ export function seedDemoData(userId: string) {
       monthsAgo,
       notes,
     ] of investments) {
-      run(
+      await run(
         `INSERT INTO investments
            (id, user_id, title, down_payment, contribution_amount, frequency, start_date, notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -390,7 +390,7 @@ export function seedDemoData(userId: string) {
       ];
 
     for (const [name, group, exercises] of templates) {
-      run(
+      await run(
         `INSERT INTO workout_templates (id, user_id, name, muscle_group, exercises, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         uid("t_"),
@@ -482,7 +482,7 @@ export function seedDemoData(userId: string) {
 
     for (const [offset, name, group, exercises] of history) {
       const sessionId = uid("w_");
-      run(
+      await run(
         `INSERT INTO workout_sessions (id, user_id, date, name, muscle_group, notes, created_at)
          VALUES (?, ?, ?, ?, ?, '', ?)`,
         sessionId,
@@ -493,8 +493,9 @@ export function seedDemoData(userId: string) {
         stamp,
       );
 
-      exercises.forEach(([exName, sets, reps, weight], index) => {
-        run(
+      let index = 0;
+      for (const [exName, sets, reps, weight] of exercises) {
+        await run(
           `INSERT INTO workout_exercises (id, session_id, user_id, name, sets, reps, weight, rest_seconds, completed, position)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           uid("x_"),
@@ -508,14 +509,15 @@ export function seedDemoData(userId: string) {
           offset === 0 ? (index < 2 ? 1 : 0) : 1,
           index,
         );
-      });
+        index += 1;
+      }
     }
   });
 }
 
 /** Wipe every row belonging to a user, keeping the account itself. */
-export function clearUserData(userId: string) {
-  transaction(() => {
+export async function clearUserData(userId: string) {
+  await transaction(async ({ run }) => {
     for (const table of [
       "activities",
       "diary_entries",
@@ -524,12 +526,12 @@ export function clearUserData(userId: string) {
       "fitness_daily",
       "investments",
     ]) {
-      run(`DELETE FROM ${table} WHERE user_id = ?`, userId);
+      await run(`DELETE FROM ${table} WHERE user_id = ?`, userId);
     }
     // These cascade to reminder_completions / workout_exercises /
     // goal_contributions respectively.
-    run(`DELETE FROM reminders WHERE user_id = ?`, userId);
-    run(`DELETE FROM workout_sessions WHERE user_id = ?`, userId);
-    run(`DELETE FROM savings_goals WHERE user_id = ?`, userId);
+    await run(`DELETE FROM reminders WHERE user_id = ?`, userId);
+    await run(`DELETE FROM workout_sessions WHERE user_id = ?`, userId);
+    await run(`DELETE FROM savings_goals WHERE user_id = ?`, userId);
   });
 }

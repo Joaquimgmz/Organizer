@@ -19,7 +19,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("Give the workout a name.");
   }
 
-  const changed = applyUpdates("workout_sessions", id, user.id, updates);
+  const changed = await applyUpdates("workout_sessions", id, user.id, updates);
   if (changed === 0) return fail("Workout not found.", 404);
 
   return json({ ok: true });
@@ -28,7 +28,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
   // workout_exercises cascades on delete.
-  if (deleteRow("workout_sessions", id, user.id) === 0) {
+  if ((await deleteRow("workout_sessions", id, user.id)) === 0) {
     return fail("Workout not found.", 404);
   }
   return json({ ok: true });

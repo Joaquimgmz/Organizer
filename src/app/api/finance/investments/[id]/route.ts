@@ -23,7 +23,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
     return fail("Give the investment a title.");
   }
 
-  if (applyUpdates("investments", id, user.id, updates) === 0) {
+  if ((await applyUpdates("investments", id, user.id, updates)) === 0) {
     return fail("Investment not found.", 404);
   }
   return json({ ok: true });
@@ -31,7 +31,7 @@ export const PATCH = withUser<Ctx>(async (user, request, { params }) => {
 
 export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const { id } = await params;
-  if (deleteRow("investments", id, user.id) === 0) {
+  if ((await deleteRow("investments", id, user.id)) === 0) {
     return fail("Investment not found.", 404);
   }
   return json({ ok: true });

@@ -33,7 +33,7 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
   const input = await body<{ demo?: boolean }>(request);
 
   if (input.demo) {
-    saveConnection(
+    await saveConnection(
       user.id,
       provider,
       { access_token: "demo", refresh_token: "", expires_in: 315_360_000 },
@@ -51,7 +51,7 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
     );
   }
 
-  return json({ mode: "oauth", url: buildAuthorizeUrl(provider, user.id) });
+  return json({ mode: "oauth", url: await buildAuthorizeUrl(provider, user.id) });
 });
 
 /** Disconnect and forget the stored tokens. */
@@ -60,12 +60,12 @@ export const DELETE = withUser<Ctx>(async (user, _request, { params }) => {
   const provider = parseProvider(raw);
   if (!provider) return fail("Unknown provider.", 404);
 
-  run(
+  await run(
     `DELETE FROM fitness_connections WHERE user_id = ? AND provider = ?`,
     user.id,
     provider,
   );
-  run(
+  await run(
     `DELETE FROM fitness_daily WHERE user_id = ? AND provider = ?`,
     user.id,
     provider,

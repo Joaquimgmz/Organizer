@@ -8,7 +8,7 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
   const { id: sessionId } = await params;
   const input = await body<Record<string, unknown>>(request);
 
-  const session = get<{ id: string }>(
+  const session = await get<{ id: string }>(
     `SELECT id FROM workout_sessions WHERE id = ? AND user_id = ?`,
     sessionId,
     user.id,
@@ -18,13 +18,13 @@ export const POST = withUser<Ctx>(async (user, request, { params }) => {
   const name = str(input.name);
   if (!name) return fail("Name the exercise.");
 
-  const next = get<{ next: number }>(
+  const next = await get<{ next: number }>(
     `SELECT COALESCE(MAX(position) + 1, 0) AS next FROM workout_exercises WHERE session_id = ?`,
     sessionId,
   );
 
   const id = uid("x_");
-  run(
+  await run(
     `INSERT INTO workout_exercises
        (id, session_id, user_id, name, sets, reps, weight, rest_seconds, completed, position)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,

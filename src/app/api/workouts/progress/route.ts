@@ -12,7 +12,7 @@ export const GET = withUser(async (user, request) => {
   const days = Math.min(365, Math.max(14, Number(query(request).get("days")) || 90));
   const since = addDays(today(), -days);
 
-  const volume = all<{ date: string; volume: number; exercises: number }>(
+  const volume = await all<{ date: string; volume: number; exercises: number }>(
     `SELECT s.date AS date,
             COALESCE(SUM(e.sets * e.reps * e.weight), 0) AS volume,
             COUNT(e.id) AS exercises
@@ -25,7 +25,7 @@ export const GET = withUser(async (user, request) => {
     since,
   );
 
-  const byGroup = all<{ muscle_group: string; sessions: number }>(
+  const byGroup = await all<{ muscle_group: string; sessions: number }>(
     `SELECT muscle_group, COUNT(*) AS sessions FROM workout_sessions
       WHERE user_id = ? AND date >= ?
       GROUP BY muscle_group ORDER BY sessions DESC`,
@@ -33,7 +33,7 @@ export const GET = withUser(async (user, request) => {
     since,
   );
 
-  const topExercises = all<{
+  const topExercises = await all<{
     name: string;
     date: string;
     best_weight: number;
@@ -51,7 +51,7 @@ export const GET = withUser(async (user, request) => {
     since,
   );
 
-  const totals = all<{ sessions: number; volume: number }>(
+  const totalsRows = await all<{ sessions: number; volume: number }>(
     `SELECT COUNT(DISTINCT s.id) AS sessions,
             COALESCE(SUM(e.sets * e.reps * e.weight), 0) AS volume
        FROM workout_sessions s
@@ -59,7 +59,8 @@ export const GET = withUser(async (user, request) => {
       WHERE s.user_id = ? AND s.date >= ?`,
     user.id,
     since,
-  )[0] ?? { sessions: 0, volume: 0 };
+  );
+  const totals = totalsRows[0] ?? { sessions: 0, volume: 0 };
 
   return json({ days, volume, byGroup, topExercises, totals });
 });

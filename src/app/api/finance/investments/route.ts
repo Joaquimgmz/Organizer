@@ -13,7 +13,7 @@ import { FREQUENCIES, type Investment } from "@/lib/types";
 import { nowIso, today, uid } from "@/lib/utils";
 
 export const GET = withUser(async (user) => {
-  const investments = all<Investment>(
+  const investments = await all<Investment>(
     `SELECT id, title, down_payment, contribution_amount, frequency, start_date, notes, created_at
        FROM investments WHERE user_id = ? ORDER BY created_at DESC`,
     user.id,
@@ -37,7 +37,7 @@ export const POST = withUser(async (user, request) => {
   }
 
   const id = uid("i_");
-  run(
+  await run(
     `INSERT INTO investments
        (id, user_id, title, down_payment, contribution_amount, frequency, start_date, notes, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,

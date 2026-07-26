@@ -49,7 +49,8 @@ export const GET = withUser(async (user, request) => {
 
   sql += ` ORDER BY date DESC, created_at DESC LIMIT 200`;
 
-  const entries = all<Row>(sql, ...args).map((row) => ({
+  const rows = await all<Row>(sql, ...args);
+  const entries = rows.map((row) => ({
     ...row,
     tags: JSON.parse(row.tags || "[]") as string[],
   }));
@@ -66,7 +67,7 @@ export const POST = withUser(async (user, request) => {
   const id = uid("d_");
   const stamp = nowIso();
 
-  run(
+  await run(
     `INSERT INTO diary_entries (id, user_id, date, title, content, mood, tags, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,

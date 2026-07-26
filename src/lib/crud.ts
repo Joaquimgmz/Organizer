@@ -6,17 +6,17 @@ import { run } from "./db";
  * Table and column names always come from literals in our own route files —
  * never from request data — and every value is bound as a parameter.
  */
-export function applyUpdates(
+export async function applyUpdates(
   table: string,
   id: string,
   userId: string,
   updates: Record<string, unknown>,
-): number {
+): Promise<number> {
   const columns = Object.keys(updates);
   if (columns.length === 0) return 0;
 
   const assignments = columns.map((column) => `${column} = ?`).join(", ");
-  const result = run(
+  const result = await run(
     `UPDATE ${table} SET ${assignments} WHERE id = ? AND user_id = ?`,
     ...columns.map((column) => updates[column]),
     id,
@@ -26,8 +26,12 @@ export function applyUpdates(
   return Number(result.changes ?? 0);
 }
 
-export function deleteRow(table: string, id: string, userId: string): number {
-  const result = run(
+export async function deleteRow(
+  table: string,
+  id: string,
+  userId: string,
+): Promise<number> {
+  const result = await run(
     `DELETE FROM ${table} WHERE id = ? AND user_id = ?`,
     id,
     userId,
