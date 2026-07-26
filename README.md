@@ -3,8 +3,10 @@
 An all-in-one personal organiser: daily routine, reminders, diary, money and
 workouts in one app.
 
-Runs entirely on your machine. No cloud account needed, no services to sign up
-for — the database is a single SQLite file.
+Runs entirely on your machine for local use — no cloud account needed, no
+services to sign up for. The database is SQLite-compatible (via libSQL); a
+free hosted database is only needed if you deploy it (see
+[Production](#production)).
 
 ---
 
@@ -24,8 +26,7 @@ a month of example data"* ticked so every screen has something to show.
 That's it. Nothing else needs configuring — the fitness integrations are
 optional (see [Optional integrations](#optional-integrations)).
 
-**Requires Node 22.5 or newer** (Node 24 recommended). The app uses the built-in
-`node:sqlite` module, so there is no native database driver to compile.
+**Requires Node 22.5 or newer** (Node 24 recommended).
 
 ### Production
 
@@ -43,6 +44,22 @@ without it, so a real deployment can't accidentally ship with a development key:
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
+
+**Deploying somewhere serverless (Vercel, etc.) also requires a real database.**
+Locally the app just writes to a SQLite file, but serverless filesystems are
+read-only/ephemeral, so that file can't persist between requests. Point the app
+at a hosted [Turso](https://turso.tech) database instead — it's the same SQL
+engine (libSQL), so nothing else about the app changes:
+
+```bash
+turso db create routine-organizer
+turso db show routine-organizer --url        # → TURSO_DATABASE_URL
+turso db tokens create routine-organizer      # → TURSO_AUTH_TOKEN
+```
+
+Set both as environment variables on your host. Without `TURSO_DATABASE_URL`,
+the app refuses to start in production rather than silently failing on first
+request.
 
 ---
 
@@ -172,7 +189,8 @@ Copy `.env.example` to `.env.local` and fill in only what you want.
 | `AUTH_SECRET` | Signs session cookies. Required in production. |
 | `FITBIT_CLIENT_ID` / `FITBIT_CLIENT_SECRET` | Real Fitbit sync. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Real Google Fit sync. |
-| `DATABASE_PATH` | Move the SQLite file. Defaults to `./data/routine.db`. |
+| `DATABASE_PATH` | Move the local SQLite file. Defaults to `./data/routine.db`. |
+| `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` | Use a hosted database instead of a local file. Required in production. |
 | `NEXT_PUBLIC_APP_URL` | Base URL used to build OAuth redirect URIs. |
 
 ### Fitbit
@@ -199,12 +217,13 @@ Copy `.env.example` to `.env.local` and fill in only what you want.
 | --- | --- | --- |
 | Framework | Next.js 16 (App Router), React 19, TypeScript | Server components for auth-gated pages, route handlers for the API |
 | Styling | Tailwind CSS v4 with CSS custom properties | Light/dark resolve in CSS from one set of design tokens |
-| Database | SQLite via the built-in `node:sqlite` | Real SQL, zero native dependencies, one file to back up |
+| Database | SQLite-compatible via `@libsql/client` (local file, or hosted Turso in production) | Real SQL, same engine locally and in production, no data lost to an ephemeral serverless filesystem |
 | Auth | scrypt password hashing + HMAC-signed httpOnly session cookies | No external auth service; sessions are revocable server-side |
 | Charts | Hand-written SVG components | See the note below |
 | Icons | `lucide-react` | |
 
-Four runtime dependencies in total: `next`, `react`, `react-dom`, `lucide-react`.
+Five runtime dependencies in total: `next`, `react`, `react-dom`, `lucide-react`,
+`@libsql/client`.
 
 **On charts:** this started on Recharts, which rendered bars and axis ticks
 inconsistently under React 19 — empty rectangle groups after a client-side
@@ -273,7 +292,7 @@ scheduled job, and editing the start date recalculates the history correctly.
 
 **Client/server split in the finance code.** `finance.ts` holds the maths and
 imports no database code, because the goal and investment views are client
-components — importing `node:sqlite` into a client bundle fails the build.
+components — importing the database client into a client bundle fails the build.
 Queries live in `finance-server.ts`.
 
 **Auth.** Passwords are hashed with `scrypt`. The session cookie is
