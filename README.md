@@ -142,10 +142,18 @@ Three tabs: **Overview**, **Goals** and **Investments**.
   commitments compare on one scale
 - Next contribution date, and totals in a year and in five
 - A chart of total contributed over the next 24 months
+- **Income** — dividends, interest, rent or any payout you actually received,
+  logged with a date and an optional note. Like goal contributions it's a
+  history, not a single total, so a mistyped figure can be deleted and the
+  numbers correct themselves
+- Per plan: total income, the **realised return** as a percentage of the money
+  actually put in, the observed income per month, and the net position
+- Across all plans: total income, overall return, and a ranked breakdown of
+  which plans are actually paying out
 
-> The investment figures are **money in, not value out**. Nothing assumes a
-> growth rate, because the app has no idea what your investments actually return
-> — inventing one would be making up numbers about your money.
+> Contributions are **money in**; income is **money out that you recorded**.
+> Neither is a forecast — no growth rate is ever assumed, and income is not
+> projected forward, because past payouts don't guarantee future ones.
 
 ### Workouts
 
@@ -170,6 +178,41 @@ tokens and the synced rows.
 Haven't registered a developer app? Use **"Use demo data instead"** to exercise
 the whole flow with generated data. Demo connections are flagged in the database
 and clearly labelled in the UI — they're never presented as real measurements.
+
+### Language
+
+The whole interface is available in **English**, **Portuguese (Brasil)**,
+**Spanish**, **French** and **German**, selected in **Settings → Language** —
+every screen, including empty states, toasts, table headings, chart labels,
+validation messages and `aria-label`s. It also drives date and currency
+formatting via `Intl`, so numbers and dates read correctly for the locale rather
+than just the labels changing.
+
+The choice is stored in a **cookie** (`ro-language`), which the server reads
+before rendering. That's deliberate: `localStorage` is only readable after
+hydration, which meant a visible flash of English on first paint. With the cookie
+the first HTML — and the `<html lang>` attribute — is already correct.
+
+Dictionaries live in `src/lib/i18n/`, one file per locale, ~670 keys each.
+`en.ts` is the source of truth: every other locale is typed as
+`Record<TranslationKey, string>` derived from it, so a missing or misspelled key
+is a **compile error** rather than a blank label found later. Run
+`npm run typecheck` after editing any translation.
+
+Two helpers, both from `useLanguage()`:
+
+- `t("some.key", { name: "x" })` — a static string, with `{placeholder}`
+  substitution.
+- `tv("category", value)` — a label for a value that came out of the database
+  (an activity category, a muscle group, a diary tag). Unknown values fall back
+  to the raw value, which is what keeps **user-invented diary tags** working.
+
+Stored values are never translated — switching language changes labels only,
+never a row in SQLite.
+
+> Server components can't use the hook. `src/lib/i18n/server.ts` exposes
+> `getLanguage()`, which pairs with the plain `translate()` function — that's how
+> the root layout and the sign-in screen localise themselves.
 
 ### Design
 
@@ -260,8 +303,11 @@ src/
 │   ├── layout/                 App shell, nav, reminder watcher
 │   ├── charts/                 Charts.tsx (column + line), BarList.tsx
 │   ├── finance/                GoalsView, InvestmentsView
+│   ├── LanguageProvider.tsx    Selected language, useT(), language picker
 │   └── auth/                   AuthForm
 └── lib/
+    ├── i18n/                   en.ts (source of truth) + pt-BR, es, fr, de,
+    │                           plus server.ts for server components
     ├── db.ts  schema.ts        Connection + schema (applied on boot)
     ├── auth.ts  api.ts  crud.ts
     ├── types.ts  utils.ts      Shared domain types and date/money helpers
@@ -289,6 +335,19 @@ deleting a wrong entry corrects the progress automatically.
 **Investment contributions.** Never stored per contribution; derived from the
 start date, the frequency and today. So a plan is always up to date without a
 scheduled job, and editing the start date recalculates the history correctly.
+
+**Investment income**, by contrast, *is* stored per entry — it can't be derived,
+because only you know what actually landed. Totals and the realised return are
+computed from those rows, so deleting a wrong entry fixes the figures.
+
+**⚠️ Adding a column to an existing table needs a migration.** `schema.ts` is
+applied on every boot with `CREATE TABLE IF NOT EXISTS` and nothing else — there
+is no `ALTER TABLE` step. A **new table** therefore appears automatically on an
+existing database, but a **new column on an existing table will not**: the app
+would work on a fresh install and fail with `no such column` on any database
+created before the change. That's why income lives in its own
+`investment_income` table rather than as a column on `investments`. If you ever
+do need a new column, add an explicit migration alongside the schema.
 
 **Client/server split in the finance code.** `finance.ts` holds the maths and
 imports no database code, because the goal and investment views are client
