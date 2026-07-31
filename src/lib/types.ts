@@ -137,6 +137,21 @@ export type SavingsGoal = {
   contributions: GoalContribution[];
 };
 
+/**
+ * One payout actually received from an investment — a dividend, interest, rent.
+ *
+ * Recorded, not projected: the app never assumes a return rate, so every income
+ * figure it shows traces back to an entry the user logged.
+ */
+export type InvestmentIncome = {
+  id: string;
+  investment_id: string;
+  amount: number;
+  date: string;
+  note: string;
+  created_at: string;
+};
+
 /** A recurring investment plan: down payment plus a fixed contribution. */
 export type Investment = {
   id: string;
@@ -147,6 +162,8 @@ export type Investment = {
   start_date: string;
   notes: string;
   created_at: string;
+  /** Payouts received, newest first. Always supplied by the API. */
+  income: InvestmentIncome[];
 };
 
 export const MUSCLE_GROUPS = [

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 import { Page } from "@/components/layout/Shell";
 import {
   ACTIVITY_COLORS,
@@ -41,26 +42,28 @@ import {
   formatTime,
   minutesOf,
   relativeDay,
-  titleCase,
   today,
 } from "@/lib/utils";
+import type { TranslationKey } from "@/lib/i18n";
 
-function greeting() {
+/** Returns a translation key rather than text, so the caller localises it. */
+function greetingKey(): TranslationKey {
   const hour = new Date().getHours();
-  if (hour < 5) return "Still up";
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 5) return "dash.stillUp";
+  if (hour < 12) return "dash.goodMorning";
+  if (hour < 18) return "dash.goodAfternoon";
+  return "dash.goodEvening";
 }
 
 /** "Open" link used in each card header. */
 function OpenLink({ href }: { href: string }) {
+  const { t } = useLanguage();
   return (
     <Link
       href={href}
       className="text-accent flex items-center gap-1 text-[13px] font-medium hover:underline"
     >
-      Open
+      {t("common.open")}
       <ArrowRight className="size-3.5" />
     </Link>
   );
@@ -101,6 +104,7 @@ function ProgressRow({
 }
 
 export default function DashboardPage() {
+  const { t, tv, locale } = useLanguage();
   const day = today();
   const { data, loading, error } = useApi<DashboardData>(
     `/api/dashboard?date=${day}`,
@@ -111,9 +115,16 @@ export default function DashboardPage() {
     return now.getHours() * 60 + now.getMinutes();
   }, []);
 
+  // Passed to relativeDay so "Today"/"Tomorrow"/"Yesterday" follow the language.
+  const relLabels = {
+    today: t("date.today"),
+    tomorrow: t("date.tomorrow"),
+    yesterday: t("date.yesterday"),
+  };
+
   if (loading && !data) {
     return (
-      <Page title={greeting()} subtitle={formatDate(day)}>
+      <Page title={t(greetingKey())} subtitle={formatDate(day, undefined, locale)}>
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={index} className="h-56" />
@@ -125,9 +136,9 @@ export default function DashboardPage() {
 
   if (error || !data) {
     return (
-      <Page title={greeting()} subtitle={formatDate(day)}>
+      <Page title={t(greetingKey())} subtitle={formatDate(day, undefined, locale)}>
         <Callout tone="danger">
-          {error ?? "Couldn't load your dashboard."}
+          {error ?? t("dash.loadFailed")}
         </Callout>
       </Page>
     );
@@ -164,8 +175,8 @@ export default function DashboardPage() {
 
   return (
     <Page
-      title={greeting()}
-      subtitle={formatDate(day)}
+      title={t(greetingKey())}
+      subtitle={formatDate(day, undefined, locale)}
       actions={
         data.streak > 0 && (
           <Badge
@@ -173,7 +184,7 @@ export default function DashboardPage() {
             className="h-8 gap-1.5 px-2.5 text-[13px]"
           >
             <Flame className="size-3.5" />
-            {data.streak} day streak
+            {t("dash.dayStreak", { count: data.streak })}
           </Badge>
         )
       }
@@ -182,13 +193,13 @@ export default function DashboardPage() {
         {/* Progress overview */}
         <Card>
           <CardHeader
-            title="Today's progress"
+            title={t("dash.todaysProgress")}
             subtitle={
               progress.score >= 70
-                ? "Strong day so far. Keep it going."
+                ? t("dash.scoreStrong")
                 : progress.score >= 40
-                  ? "Halfway there. Pick off the next item."
-                  : "Nothing's locked in yet. Start with one thing."
+                  ? t("dash.scoreHalfway")
+                  : t("dash.scoreNothing")
             }
           />
           <CardBody className="flex items-center gap-5">
@@ -201,22 +212,28 @@ export default function DashboardPage() {
 
             <ul className="min-w-0 flex-1 space-y-1.5">
               <ProgressRow
-                label="Schedule"
+                label={t("dash.rowSchedule")}
                 done={progress.activities_done}
                 total={progress.activities_total}
               />
               <ProgressRow
-                label="Reminders"
+                label={t("dash.rowReminders")}
                 done={progress.reminders_done}
                 total={progress.reminders_total}
               />
               <ProgressRow
-                label="Workout"
+                label={t("dash.rowWorkout")}
                 done={progress.exercises_done}
                 total={progress.exercises_total}
               />
-              <ProgressRow label="Diary entry" complete={progress.diary_written} />
-              <ProgressRow label="Inside budget" complete={progress.budget_ok} />
+              <ProgressRow
+                label={t("dash.rowDiary")}
+                complete={progress.diary_written}
+              />
+              <ProgressRow
+                label={t("dash.rowBudget")}
+                complete={progress.budget_ok}
+              />
             </ul>
           </CardBody>
         </Card>
@@ -224,15 +241,18 @@ export default function DashboardPage() {
         {/* Today's schedule */}
         <Card>
           <CardHeader
-            title="Today's schedule"
+            title={t("dash.todaysSchedule")}
             icon={<CalendarDays className="size-4" />}
             subtitle={
               currentActivity
-                ? `Now: ${currentActivity.title}`
+                ? t("dash.nowActivity", { title: currentActivity.title })
                 : nextActivity
-                  ? `Next: ${nextActivity.title} at ${formatTime(nextActivity.start_time)}`
+                  ? t("dash.nextActivity", {
+                      title: nextActivity.title,
+                      time: formatTime(nextActivity.start_time),
+                    })
                   : activities.length > 0
-                    ? "Nothing scheduled for the rest of today"
+                    ? t("dash.nothingLeftToday")
                     : undefined
             }
             action={<OpenLink href="/routine" />}
@@ -241,11 +261,11 @@ export default function DashboardPage() {
             {activities.length === 0 ? (
               <EmptyState
                 icon={<CalendarDays className="size-5" />}
-                title="No activities yet"
-                message="Block out your day so the timeline has something to show."
+                title={t("dash.noActivitiesTitle")}
+                message={t("dash.noActivitiesMessage")}
                 action={
                   <LinkButton variant="primary" size="sm" href="/routine">
-                    Plan today
+                    {t("dash.planToday")}
                   </LinkButton>
                 }
               />
@@ -289,7 +309,7 @@ export default function DashboardPage() {
                       </span>
                       {isNow && (
                         <Badge color="var(--accent)" className="shrink-0">
-                          Now
+                          {t("dash.now")}
                         </Badge>
                       )}
                     </li>
@@ -297,7 +317,7 @@ export default function DashboardPage() {
                 })}
                 {activities.length > 6 && (
                   <li className="text-ink-3 px-2 pt-1 text-[12.5px]">
-                    +{activities.length - 6} more today
+                    {t("dash.moreToday", { count: activities.length - 6 })}
                   </li>
                 )}
               </ol>
@@ -308,17 +328,17 @@ export default function DashboardPage() {
         {/* Upcoming reminders */}
         <Card>
           <CardHeader
-            title="Upcoming reminders"
+            title={t("dash.upcomingReminders")}
             icon={<Bell className="size-4" />}
-            subtitle="Next 7 days"
+            subtitle={t("dash.nextSevenDays")}
             action={<OpenLink href="/reminders" />}
           />
           <CardBody>
             {reminders.length === 0 ? (
               <EmptyState
                 icon={<Bell className="size-5" />}
-                title="Nothing pending"
-                message="Everything on the list is either done or further out."
+                title={t("dash.nothingPendingTitle")}
+                message={t("dash.nothingPendingMessage")}
               />
             ) : (
               <ul className="space-y-1.5">
@@ -328,7 +348,11 @@ export default function DashboardPage() {
                     className="hover:bg-surface-2 flex items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors"
                   >
                     <span className="text-ink-3 mt-px w-[5.25rem] shrink-0 text-[12px]">
-                      {relativeDay(reminder.occurrence_date)}
+                      {relativeDay(
+                        reminder.occurrence_date,
+                        locale,
+                        relLabels,
+                      )}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-ink truncate text-[13.5px]">
@@ -337,7 +361,9 @@ export default function DashboardPage() {
                       <p className="text-ink-3 text-[12px]">
                         {formatTime(reminder.time)}
                         {reminder.repeat_rule !== "none" &&
-                          ` - repeats ${reminder.repeat_rule}`}
+                          ` ${t("dash.repeatsRule", {
+                            rule: t(`repeat.${reminder.repeat_rule}`),
+                          })}`}
                       </p>
                     </div>
                     <PriorityBadge priority={reminder.priority} />
@@ -351,12 +377,19 @@ export default function DashboardPage() {
         {/* Budget */}
         <Card>
           <CardHeader
-            title="This month's money"
+            title={t("dash.thisMonthsMoney")}
             icon={<Wallet className="size-4" />}
             subtitle={
               finance.settings.monthly_limit > 0
-                ? `${formatMoney(finance.spent_month, currency)} of ${formatMoney(finance.settings.monthly_limit, currency)} limit`
-                : "No monthly limit set yet"
+                ? t("dash.ofLimit", {
+                    spent: formatMoney(finance.spent_month, currency, locale),
+                    limit: formatMoney(
+                      finance.settings.monthly_limit,
+                      currency,
+                      locale,
+                    ),
+                  })
+                : t("dash.noLimitSet")
             }
             action={<OpenLink href="/finance" />}
           />
@@ -365,15 +398,19 @@ export default function DashboardPage() {
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div>
                   <p className="text-ink text-xl leading-none font-semibold tracking-tight">
-                    {formatMoney(finance.remaining, currency)}
+                    {formatMoney(finance.remaining, currency, locale)}
                   </p>
-                  <p className="text-ink-3 mt-1 text-[12.5px]">left this month</p>
+                  <p className="text-ink-3 mt-1 text-[12.5px]">
+                    {t("dash.leftThisMonth")}
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className="text-ink text-[13px] font-medium tabular-nums">
-                    {formatMoney(finance.daily_allowance, currency)}
+                    {formatMoney(finance.daily_allowance, currency, locale)}
                   </p>
-                  <p className="text-ink-3 text-[12px]">per day from here</p>
+                  <p className="text-ink-3 text-[12px]">
+                    {t("dash.perDayFromHere")}
+                  </p>
                 </div>
               </div>
 
@@ -386,7 +423,7 @@ export default function DashboardPage() {
                       ? "var(--warning)"
                       : "var(--good)"
                 }
-                label="Budget used"
+                label={t("finance.budgetUsed")}
               />
 
               <div className="mt-1.5 flex items-center gap-1.5 text-[12px]">
@@ -394,7 +431,9 @@ export default function DashboardPage() {
                   <>
                     <TrendingUp className="text-critical size-3.5" />
                     <span style={{ color: "var(--critical)" }}>
-                      {Math.round(budgetUsed - 100)}% over the limit
+                      {t("dash.percentOverLimit", {
+                        percent: Math.round(budgetUsed - 100),
+                      })}
                     </span>
                   </>
                 ) : (
@@ -404,12 +443,16 @@ export default function DashboardPage() {
                       style={{ color: "var(--good-ink)" }}
                     />
                     <span className="text-ink-3">
-                      {Math.round(budgetUsed)}% of the limit used
+                      {t("dash.percentOfLimitUsed", {
+                        percent: Math.round(budgetUsed),
+                      })}
                     </span>
                   </>
                 )}
                 <span className="text-ink-3 ml-auto">
-                  {formatMoney(finance.spent_today, currency)} today
+                  {t("dash.spentToday", {
+                    amount: formatMoney(finance.spent_today, currency, locale),
+                  })}
                 </span>
               </div>
             </div>
@@ -419,7 +462,7 @@ export default function DashboardPage() {
                 {topCategories.map((row) => (
                   <div key={row.category} className="flex items-center gap-2">
                     <span className="text-ink-2 w-[6.5rem] shrink-0 truncate text-[12.5px]">
-                      {titleCase(row.category)}
+                      {tv("expense", row.category)}
                     </span>
                     <div className="bg-surface-2 h-2 flex-1 overflow-hidden rounded-full">
                       <div
@@ -433,7 +476,7 @@ export default function DashboardPage() {
                       />
                     </div>
                     <span className="text-ink w-16 shrink-0 text-right text-[12.5px] tabular-nums">
-                      {formatMoney(row.total, currency)}
+                      {formatMoney(row.total, currency, locale)}
                     </span>
                   </div>
                 ))}
@@ -445,12 +488,15 @@ export default function DashboardPage() {
         {/* Workout */}
         <Card>
           <CardHeader
-            title="Workout plan"
+            title={t("dash.workoutPlan")}
             icon={<Dumbbell className="size-4" />}
             subtitle={
               workout
-                ? `${workout.name} - ${titleCase(workout.muscle_group)}`
-                : "Nothing planned for today"
+                ? t("dash.workoutSubtitle", {
+                    name: workout.name,
+                    group: tv("muscle", workout.muscle_group),
+                  })
+                : t("dash.nothingPlannedToday")
             }
             action={<OpenLink href="/workouts" />}
           />
@@ -458,11 +504,11 @@ export default function DashboardPage() {
             {!workout ? (
               <EmptyState
                 icon={<Dumbbell className="size-5" />}
-                title="Rest day?"
-                message="Start a session from a template: push, pull, legs or full body."
+                title={t("dash.restDayTitle")}
+                message={t("dash.restDayMessage")}
                 action={
                   <LinkButton variant="primary" size="sm" href="/workouts">
-                    Start a workout
+                    {t("dash.startWorkout")}
                   </LinkButton>
                 }
               />
@@ -473,11 +519,13 @@ export default function DashboardPage() {
                     value={progress.exercises_done}
                     max={Math.max(1, progress.exercises_total)}
                     color="var(--series-2)"
-                    label="Exercises completed"
+                    label={t("dash.exercisesCompleted")}
                   />
                   <p className="text-ink-3 mt-1.5 text-[12px]">
-                    {progress.exercises_done} of {progress.exercises_total}{" "}
-                    exercises done
+                    {t("dash.exercisesDone", {
+                      done: progress.exercises_done,
+                      total: progress.exercises_total,
+                    })}
                   </p>
                 </div>
                 <ul className="space-y-1">
@@ -520,20 +568,22 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="Recent diary entry"
+              title={t("dash.recentDiary")}
               icon={<NotebookPen className="size-4" />}
-              subtitle={diary ? relativeDay(diary.date) : undefined}
+              subtitle={
+                diary ? relativeDay(diary.date, locale, relLabels) : undefined
+              }
               action={<OpenLink href="/diary" />}
             />
             <CardBody>
               {!diary ? (
                 <EmptyState
                   icon={<NotebookPen className="size-5" />}
-                  title="Nothing written yet"
-                  message="A few lines about the day is enough to start."
+                  title={t("dash.nothingWrittenTitle")}
+                  message={t("dash.nothingWrittenMessage")}
                   action={
                     <LinkButton variant="primary" size="sm" href="/diary">
-                      Write an entry
+                      {t("dash.writeEntry")}
                     </LinkButton>
                   }
                 />
@@ -548,9 +598,11 @@ export default function DashboardPage() {
                     {diary.content}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <Badge color="var(--series-5)">Mood {diary.mood}/5</Badge>
+                    <Badge color="var(--series-5)">
+                      {t("dash.moodBadge", { value: diary.mood })}
+                    </Badge>
                     {diary.tags.slice(0, 3).map((tag) => (
-                      <Badge key={tag}>{tag}</Badge>
+                      <Badge key={tag}>{tv("tag", tag)}</Badge>
                     ))}
                   </div>
                 </>
@@ -560,12 +612,19 @@ export default function DashboardPage() {
 
           <Card>
             <CardHeader
-              title="Fitness data"
+              title={t("dash.fitnessData")}
               icon={<HeartPulse className="size-4" />}
               subtitle={
                 fitness
-                  ? `Synced ${relativeDay(fitness.date).toLowerCase()} from ${titleCase(fitness.provider)}`
-                  : "No tracker connected"
+                  ? t("dash.syncedFrom", {
+                      when: relativeDay(
+                        fitness.date,
+                        locale,
+                        relLabels,
+                      ).toLocaleLowerCase(locale),
+                      provider: tv("provider", fitness.provider),
+                    })
+                  : t("dash.noTracker")
               }
               action={<OpenLink href="/fitness" />}
             />
@@ -573,11 +632,11 @@ export default function DashboardPage() {
               {!fitness ? (
                 <EmptyState
                   icon={<Footprints className="size-5" />}
-                  title="Connect a tracker"
-                  message="Sync Fitbit or Google Fit to pull in steps, calories and heart rate."
+                  title={t("dash.connectTrackerTitle")}
+                  message={t("dash.connectTrackerMessage")}
                   action={
                     <LinkButton variant="primary" size="sm" href="/fitness">
-                      Connect
+                      {t("dash.connect")}
                     </LinkButton>
                   }
                 />
@@ -585,22 +644,22 @@ export default function DashboardPage() {
                 <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[
                     {
-                      label: "Steps",
-                      value: fitness.steps.toLocaleString(),
+                      label: t("dash.steps"),
+                      value: fitness.steps.toLocaleString(locale),
                       color: "var(--series-1)",
                     },
                     {
-                      label: "Calories",
-                      value: fitness.calories.toLocaleString(),
+                      label: t("dash.calories"),
+                      value: fitness.calories.toLocaleString(locale),
                       color: "var(--series-2)",
                     },
                     {
-                      label: "Active min",
+                      label: t("dash.activeMin"),
                       value: String(fitness.active_minutes),
                       color: "var(--series-3)",
                     },
                     {
-                      label: "Resting HR",
+                      label: t("dash.restingHr"),
                       value: fitness.resting_hr ? `${fitness.resting_hr}` : "-",
                       color: "var(--series-8)",
                     },

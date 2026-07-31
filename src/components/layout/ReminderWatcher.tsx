@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/client";
 import type { ReminderOccurrence } from "@/lib/types";
@@ -45,6 +46,8 @@ function saveNotified(keys: Set<string>) {
  */
 export function ReminderWatcher() {
   const { push } = useToast();
+  // `t` is memoised per language in LanguageProvider, so it is a stable dep.
+  const { t } = useLanguage();
   const notified = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -82,9 +85,17 @@ export function ReminderWatcher() {
         notified.current.add(key);
         changed = true;
 
-        const label = `${reminder.title} · ${formatTime(reminder.time)}`;
+        const label = t("watcher.label", {
+          title: reminder.title,
+          time: formatTime(reminder.time),
+        });
         push(
-          reminder.description ? `${label} — ${reminder.description}` : label,
+          reminder.description
+            ? t("watcher.withDescription", {
+                label,
+                description: reminder.description,
+              })
+            : label,
           reminder.priority === "high" ? "error" : "info",
         );
 
@@ -94,7 +105,9 @@ export function ReminderWatcher() {
         ) {
           try {
             new Notification(reminder.title, {
-              body: reminder.description || `Due at ${formatTime(reminder.time)}`,
+              body:
+                reminder.description ||
+                t("watcher.dueAt", { time: formatTime(reminder.time) }),
               tag: key,
               icon: "/icon.svg",
             });
@@ -122,7 +135,7 @@ export function ReminderWatcher() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [push]);
+  }, [push, t]);
 
   return null;
 }

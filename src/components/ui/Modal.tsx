@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
+import { useT } from "@/components/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { Button } from "./Button";
 
@@ -22,6 +23,8 @@ export function Modal({
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
 }) {
+  const t = useT();
+
   // Escape to close, and lock body scroll while open.
   useEffect(() => {
     if (!open) return;
@@ -72,7 +75,12 @@ export function Modal({
               <p className="text-ink-3 mt-1 text-[13px]">{description}</p>
             )}
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label={t("common.close")}
+          >
             <X className="size-4" />
           </Button>
         </header>
@@ -95,7 +103,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   message,
-  confirmLabel = "Delete",
+  confirmLabel,
   destructive = true,
 }: {
   open: boolean;
@@ -103,9 +111,12 @@ export function ConfirmDialog({
   onConfirm: () => void;
   title: string;
   message: ReactNode;
+  /** Defaults to the translated "Delete" when omitted. */
   confirmLabel?: string;
   destructive?: boolean;
 }) {
+  const t = useT();
+
   return (
     <Modal
       open={open}
@@ -115,7 +126,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             variant={destructive ? "danger" : "primary"}
@@ -124,7 +135,7 @@ export function ConfirmDialog({
               onClose();
             }}
           >
-            {confirmLabel}
+            {confirmLabel ?? t("common.delete")}
           </Button>
         </>
       }

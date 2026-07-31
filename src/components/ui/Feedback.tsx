@@ -1,11 +1,15 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useT } from "@/components/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 export function Spinner({ className }: { className?: string }) {
+  const t = useT();
   return (
     <span
       role="status"
-      aria-label="Loading"
+      aria-label={t("common.loading")}
       className={cn(
         "animate-spin-slow border-ink-3 inline-block size-4 rounded-full border-2 border-t-transparent",
         className,

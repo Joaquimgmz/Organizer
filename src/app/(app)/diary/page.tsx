@@ -20,6 +20,7 @@ import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { LineChart } from "@/components/charts/Charts";
 import { api, useApi } from "@/lib/client";
+import { useLanguage } from "@/components/LanguageProvider";
 import { DIARY_TAGS, MOODS, type DiaryEntry } from "@/lib/types";
 import { cn, formatDate, formatShortDate, relativeDay, today } from "@/lib/utils";
 
@@ -48,17 +49,20 @@ function MoodPicker({
   value: number;
   onChange: (next: number) => void;
 }) {
+  const { tv } = useLanguage();
   return (
     <div className="flex gap-1.5">
       {MOODS.map((mood) => {
         const active = mood.value === value;
+        // Emoji comes from MOODS; only the wording is translated.
+        const label = tv("mood", String(mood.value));
         return (
           <button
             key={mood.value}
             type="button"
             onClick={() => onChange(mood.value)}
             aria-pressed={active}
-            title={mood.label}
+            title={label}
             className={cn(
               "flex flex-1 flex-col items-center gap-1 rounded-lg border px-1 py-2 transition-all duration-150",
               active
@@ -84,6 +88,7 @@ function MoodPicker({
 
 export default function DiaryPage() {
   const { push } = useToast();
+  const { t, tv, locale } = useLanguage();
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -130,7 +135,7 @@ export default function DiaryPage() {
   async function save() {
     if (!draft) return;
     if (!draft.content.trim()) {
-      push("Write something before saving.", "error");
+      push(t("diary.needContent"), "error");
       return;
     }
 
@@ -138,15 +143,18 @@ export default function DiaryPage() {
     try {
       if (draft.id) {
         await api.patch(`/api/diary/${draft.id}`, draft);
-        push("Entry updated.");
+        push(t("diary.updated"));
       } else {
         await api.post("/api/diary", draft);
-        push("Entry saved.");
+        push(t("diary.saved"));
       }
       setDraft(null);
       await reload();
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't save.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("common.couldntSave"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -155,10 +163,10 @@ export default function DiaryPage() {
   async function remove(entry: DiaryEntry) {
     try {
       await api.delete(`/api/diary/${entry.id}`);
-      push("Entry deleted.");
+      push(t("diary.deleted"));
       await reload();
     } catch {
-      push("Couldn't delete that entry.", "error");
+      push(t("diary.couldntDelete"), "error");
     }
   }
 
@@ -166,13 +174,18 @@ export default function DiaryPage() {
 
   return (
     <Page
-      title="Diary"
+      title={t("diary.title")}
       subtitle={
         entries.length > 0
-          ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}${
-              hasFilters ? " matching" : ""
-            } - average mood ${averageMood.toFixed(1)}/5`
-          : "Write about your day"
+          ? t(
+              entries.length === 1 ? "diary.subtitleOne" : "diary.subtitle",
+              {
+                count: entries.length,
+                matching: hasFilters ? t("diary.matching") : "",
+                avg: averageMood.toFixed(1),
+              },
+            )
+          : t("diary.writeAbout")
       }
       actions={
         <Button
@@ -181,7 +194,7 @@ export default function DiaryPage() {
           onClick={() => setDraft(emptyDraft())}
         >
           <Plus className="size-4" />
-          New entry
+          {t("diary.newEntry")}
         </Button>
       }
     >
@@ -201,14 +214,14 @@ export default function DiaryPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search everything you've written"
+                  placeholder={t("diary.searchPlaceholder")}
                   className="bg-surface border-line text-ink placeholder:text-ink-3 hover:border-line-strong focus:border-accent h-9.5 w-full rounded-lg border pr-8 pl-8.5 text-sm transition-colors outline-none"
                 />
                 {search && (
                   <button
                     onClick={() => setSearch("")}
                     className="text-ink-3 hover:text-ink absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5"
-                    aria-label="Clear search"
+                    aria-label={t("diary.clearSearch")}
                   >
                     <X className="size-3.5" />
                   </button>
@@ -218,8 +231,11 @@ export default function DiaryPage() {
               {tag && (
                 <Badge color="var(--accent)" className="h-8 gap-1 px-2 text-[12.5px]">
                   <TagIcon className="size-3" />
-                  {tag}
-                  <button onClick={() => setTag(null)} aria-label="Clear tag filter">
+                  {tv("tag", tag)}
+                  <button
+                    onClick={() => setTag(null)}
+                    aria-label={t("diary.clearTagFilter")}
+                  >
                     <X className="size-3" />
                   </button>
                 </Badge>
@@ -237,11 +253,13 @@ export default function DiaryPage() {
               <CardBody>
                 <EmptyState
                   icon={<NotebookPen className="size-5" />}
-                  title={hasFilters ? "Nothing matched" : "No entries yet"}
+                  title={
+                    hasFilters ? t("diary.nothingMatched") : t("diary.emptyTitle")
+                  }
                   message={
                     hasFilters
-                      ? "Try a different search term or clear the tag filter."
-                      : "Write a few lines about today. Mood and tags make it searchable later."
+                      ? t("diary.tryDifferent")
+                      : t("diary.emptyMessage")
                   }
                   action={
                     hasFilters ? (
@@ -253,7 +271,7 @@ export default function DiaryPage() {
                           setTag(null);
                         }}
                       >
-                        Clear filters
+                        {t("diary.clearFilters")}
                       </Button>
                     ) : (
                       <Button
@@ -262,7 +280,7 @@ export default function DiaryPage() {
                         onClick={() => setDraft(emptyDraft())}
                       >
                         <Plus className="size-4" />
-                        Write an entry
+                        {t("dash.writeEntry")}
                       </Button>
                     )
                   }
@@ -278,15 +296,26 @@ export default function DiaryPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg leading-none" title={mood.label}>
+                          <span
+                            className="text-lg leading-none"
+                            title={tv("mood", String(entry.mood))}
+                          >
                             {mood.emoji}
                           </span>
                           <div className="min-w-0">
                             <p className="text-ink truncate text-sm font-medium">
-                              {entry.title || relativeDay(entry.date)}
+                              {entry.title ||
+                                relativeDay(entry.date, locale, {
+                                  today: t("date.today"),
+                                  tomorrow: t("date.tomorrow"),
+                                  yesterday: t("date.yesterday"),
+                                })}
                             </p>
                             <p className="text-ink-3 text-[12px]">
-                              {formatDate(entry.date)} - {mood.label}
+                              {t("diary.entryMeta", {
+                                date: formatDate(entry.date, undefined, locale),
+                                mood: tv("mood", String(entry.mood)),
+                              })}
                             </p>
                           </div>
                         </div>
@@ -296,7 +325,7 @@ export default function DiaryPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Edit"
+                          aria-label={t("common.edit")}
                           onClick={() =>
                             setDraft({
                               id: entry.id,
@@ -313,7 +342,7 @@ export default function DiaryPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Delete"
+                          aria-label={t("common.delete")}
                           onClick={() => setDeleting(entry)}
                         >
                           <Trash2 className="size-3.5" />
@@ -347,17 +376,17 @@ export default function DiaryPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="Mood over time"
+              title={t("diary.moodOverTime")}
               subtitle={
                 moodSeries.length > 1
-                  ? `Average ${averageMood.toFixed(1)} out of 5`
-                  : "Needs a couple of entries"
+                  ? t("diary.averageOutOf", { avg: averageMood.toFixed(1) })
+                  : t("diary.needsMore")
               }
             />
             <CardBody>
               {moodSeries.length < 2 ? (
                 <p className="text-ink-3 text-[13px]">
-                  Write on a few different days and the trend shows up here.
+                  {t("diary.trendHint")}
                 </p>
               ) : (
                 <LineChart
@@ -365,7 +394,11 @@ export default function DiaryPage() {
                   xKey="date"
                   height={160}
                   series={[
-                    { key: "mood", label: "Mood", color: "var(--series-5)" },
+                    {
+                      key: "mood",
+                      label: t("diary.moodSeries"),
+                      color: "var(--series-5)",
+                    },
                   ]}
                   formatValue={(value) => `${value} / 5`}
                   formatTick={(value) => String(value)}
@@ -376,14 +409,14 @@ export default function DiaryPage() {
 
           <Card>
             <CardHeader
-              title="Tags"
+              title={t("diary.tags")}
               icon={<TagIcon className="size-4" />}
-              subtitle="Filter entries by how they felt"
+              subtitle={t("diary.tagsSubtitle")}
             />
             <CardBody>
               {tagCounts.length === 0 ? (
                 <p className="text-ink-3 text-[13px]">
-                  No tags used yet. Add them when you write an entry.
+                  {t("diary.noTagsYet")}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -413,8 +446,10 @@ export default function DiaryPage() {
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit entry" : "New diary entry"}
-        description={draft ? formatDate(draft.date) : undefined}
+        title={draft?.id ? t("diary.editEntry") : t("diary.newDiaryEntry")}
+        description={
+          draft ? formatDate(draft.date, undefined, locale) : undefined
+        }
         size="lg"
         footer={
           <>
@@ -436,7 +471,7 @@ export default function DiaryPage() {
               Cancel
             </Button>
             <Button variant="primary" onClick={save} loading={saving}>
-              {draft?.id ? "Save changes" : "Save entry"}
+              {draft?.id ? t("common.saveChanges") : t("diary.saveEntry")}
             </Button>
           </>
         }
@@ -445,7 +480,7 @@ export default function DiaryPage() {
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-[9.5rem_1fr]">
               <Input
-                label="Date"
+                label={t("finance.colDate")}
                 type="date"
                 value={draft.date}
                 onChange={(event) =>
@@ -453,19 +488,19 @@ export default function DiaryPage() {
                 }
               />
               <Input
-                label="Title"
-                hint="Optional"
+                label={t("rem.titleLabel")}
+                hint={t("common.optional")}
                 value={draft.title}
                 onChange={(event) =>
                   setDraft({ ...draft, title: event.target.value })
                 }
-                placeholder="A line that sums up the day"
+                placeholder={t("diary.titlePlaceholder")}
               />
             </div>
 
             <div>
               <p className="text-ink-2 mb-1.5 text-[13px] font-medium">
-                How was it?
+                {t("diary.howWasIt")}
               </p>
               <MoodPicker
                 value={draft.mood}
@@ -474,13 +509,13 @@ export default function DiaryPage() {
             </div>
 
             <Textarea
-              label="What happened?"
+              label={t("diary.contentLabel")}
               rows={9}
               value={draft.content}
               onChange={(event) =>
                 setDraft({ ...draft, content: event.target.value })
               }
-              placeholder="What you did, how it went, anything worth remembering."
+              placeholder={t("diary.contentPlaceholder")}
               autoFocus
             />
 
@@ -527,14 +562,14 @@ export default function DiaryPage() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
-        title="Delete entry?"
+        title={t("diary.deleteTitle")}
         message={
           <>
-            The entry from{" "}
+            {t("diary.deleteFrom")}{" "}
             <strong className="text-ink">
-              {deleting ? formatDate(deleting.date) : ""}
+              {deleting ? formatDate(deleting.date, undefined, locale) : ""}
             </strong>{" "}
-            will be permanently deleted.
+            {t("diary.deleteSuffix")}
           </>
         }
       />

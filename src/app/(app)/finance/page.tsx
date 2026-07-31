@@ -16,6 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 import { BarList } from "@/components/charts/BarList";
 import { LineChart } from "@/components/charts/Charts";
 import { GoalsView } from "@/components/finance/GoalsView";
@@ -44,7 +45,6 @@ import {
   formatShortDate,
   monthLabel,
   startOfMonth,
-  titleCase,
   today,
 } from "@/lib/utils";
 
@@ -69,6 +69,7 @@ type Tab = "overview" | "goals" | "investments";
 
 export default function FinancePage() {
   const { push } = useToast();
+  const { t, tv, locale } = useLanguage();
   const [tab, setTab] = useState<Tab>("overview");
   const [month, setMonth] = useState(startOfMonth(today()));
   const [draft, setDraft] = useState<ExpenseDraft | null>(null);
@@ -130,25 +131,26 @@ export default function FinancePage() {
       if (isCurrentMonth && day > dayOfMonth) {
         rows.push({
           day,
-          label: formatShortDate(key),
+          label: formatShortDate(key, locale),
           spent: Number.NaN,
           pace: limit * (day / totalDays),
         });
       } else {
         rows.push({
           day,
-          label: formatShortDate(key),
+          label: formatShortDate(key, locale),
           spent: Math.round(running * 100) / 100,
           pace: limit * (day / totalDays),
         });
       }
     }
     return rows;
-  }, [byDay, month, totalDays, isCurrentMonth, dayOfMonth, limit]);
+  }, [byDay, month, totalDays, isCurrentMonth, dayOfMonth, limit, locale]);
 
   const categoryRows = byCategory.map((row) => ({
     ...row,
-    label: titleCase(row.category),
+    // Stored category value → translated label; the value itself is untouched.
+    label: tv("expense", row.category),
     color: EXPENSE_COLORS[row.category as ExpenseCategory] ?? "var(--ink-3)",
   }));
 
@@ -160,11 +162,14 @@ export default function FinancePage() {
     setSaving(true);
     try {
       await api.put("/api/finance/settings", form);
-      push("Budget settings saved.");
+      push(t("finance.settingsSaved"));
       setEditingSettings(false);
       await settingsQuery.reload();
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't save.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("common.couldntSave"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -174,7 +179,7 @@ export default function FinancePage() {
     if (!draft) return;
     const amount = Number(draft.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      push("Enter an amount greater than zero.", "error");
+      push(t("finance.needAmount"), "error");
       return;
     }
 
@@ -183,15 +188,18 @@ export default function FinancePage() {
       const payload = { ...draft, amount };
       if (draft.id) {
         await api.patch(`/api/finance/expenses/${draft.id}`, payload);
-        push("Expense updated.");
+        push(t("finance.expenseUpdated"));
       } else {
         await api.post("/api/finance/expenses", payload);
-        push("Expense added.");
+        push(t("finance.expenseAdded"));
       }
       setDraft(null);
       await expensesQuery.reload();
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't save.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("common.couldntSave"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -200,10 +208,10 @@ export default function FinancePage() {
   async function removeExpense(expense: Expense) {
     try {
       await api.delete(`/api/finance/expenses/${expense.id}`);
-      push("Expense deleted.");
+      push(t("finance.expenseDeleted"));
       await expensesQuery.reload();
     } catch {
-      push("Couldn't delete that expense.", "error");
+      push(t("finance.couldntDeleteExpense"), "error");
     }
   }
 
@@ -211,13 +219,13 @@ export default function FinancePage() {
 
   return (
     <Page
-      title="Finance"
+      title={t("nav.finance")}
       subtitle={
         tab === "overview"
-          ? monthLabel(month)
+          ? monthLabel(month, locale)
           : tab === "goals"
-            ? "Saving up for something expensive"
-            : "Recurring investment plans"
+            ? t("finance.goalsSubtitle")
+            : t("finance.investmentsSubtitle")
       }
       actions={
         <>
@@ -231,7 +239,7 @@ export default function FinancePage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Wallet className="size-3.5" />
-                    Overview
+                    {t("finance.tabOverview")}
                   </span>
                 ),
               },
@@ -240,7 +248,7 @@ export default function FinancePage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Target className="size-3.5" />
-                    Goals
+                    {t("finance.tabGoals")}
                   </span>
                 ),
               },
@@ -249,7 +257,7 @@ export default function FinancePage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <TrendingUp className="size-3.5" />
-                    Investments
+                    {t("finance.tabInvestments")}
                   </span>
                 ),
               },
@@ -263,18 +271,18 @@ export default function FinancePage() {
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => setMonth(addMonths(month, -1))}
-                  aria-label="Previous month"
+                  aria-label={t("finance.prevMonth")}
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
                 <span className="text-ink w-[8.5rem] px-1 text-center text-[13px]">
-                  {monthLabel(month)}
+                  {monthLabel(month, locale)}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => setMonth(addMonths(month, 1))}
-                  aria-label="Next month"
+                  aria-label={t("finance.nextMonth")}
                 >
                   <ChevronRight className="size-4" />
                 </Button>
@@ -286,7 +294,7 @@ export default function FinancePage() {
                 onClick={() => setDraft(emptyExpense())}
               >
                 <Plus className="size-4" />
-                Add expense
+                {t("finance.addExpense")}
               </Button>
             </>
           )}
@@ -314,36 +322,54 @@ export default function FinancePage() {
           {/* Headline numbers */}
           <div className="stagger mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatTile
-              label="Monthly income"
-              value={formatMoney(income, currency)}
-              hint={income === 0 ? "Not set yet" : "Salary and other income"}
+              label={t("finance.monthlyIncome")}
+              value={formatMoney(income, currency, locale)}
+              hint={
+                income === 0
+                  ? t("finance.notSetYet")
+                  : t("finance.salaryAndOther")
+              }
               icon={<CircleDollarSign className="size-4" />}
               accent="var(--series-6)"
             />
             <StatTile
-              label="Total expenses"
-              value={formatMoney(spent, currency)}
-              hint={`${expenses.length} ${expenses.length === 1 ? "entry" : "entries"} this month`}
+              label={t("finance.totalExpenses")}
+              value={formatMoney(spent, currency, locale)}
+              hint={
+                expenses.length === 1
+                  ? t("finance.oneEntryThisMonth")
+                  : t("finance.entriesThisMonth", { count: expenses.length })
+              }
               icon={<Receipt className="size-4" />}
               accent="var(--series-2)"
             />
             <StatTile
-              label="Remaining balance"
-              value={formatMoney(remaining, currency)}
-              delta={overBudget ? "Over limit" : undefined}
+              label={t("finance.remainingBalance")}
+              value={formatMoney(remaining, currency, locale)}
+              delta={overBudget ? t("finance.overLimit") : undefined}
               deltaGood={overBudget ? false : undefined}
               hint={
                 overBudget
                   ? undefined
-                  : `of a ${formatMoney(limit, currency)} limit`
+                  : t("finance.ofLimit", {
+                      amount: formatMoney(limit, currency, locale),
+                    })
               }
               icon={<Wallet className="size-4" />}
               accent={overBudget ? "var(--critical)" : "var(--series-1)"}
             />
             <StatTile
-              label="Safe to spend per day"
-              value={formatMoney(Math.max(0, plan.remainingPerDay), currency)}
-              hint={`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left in the month`}
+              label={t("finance.safePerDay")}
+              value={formatMoney(
+                Math.max(0, plan.remainingPerDay),
+                currency,
+                locale,
+              )}
+              hint={
+                daysLeft === 1
+                  ? t("finance.oneDayLeft")
+                  : t("finance.daysLeft", { count: daysLeft })
+              }
               icon={<TrendingDown className="size-4" />}
               accent="var(--series-3)"
             />
@@ -357,18 +383,21 @@ export default function FinancePage() {
               {/* Budget meter */}
               <Card>
                 <CardHeader
-                  title="Monthly budget"
+                  title={t("finance.monthlyBudget")}
                   icon={<Wallet className="size-4" />}
                   subtitle={
                     limit > 0
-                      ? `${formatMoney(spent, currency)} spent of ${formatMoney(limit, currency)}`
-                      : "Set an income and a spending limit to track this"
+                      ? t("finance.spentOf", {
+                          spent: formatMoney(spent, currency, locale),
+                          limit: formatMoney(limit, currency, locale),
+                        })
+                      : t("finance.setIncomeFirst")
                   }
                   action={
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="Edit budget settings"
+                      aria-label={t("finance.editBudgetAria")}
                       onClick={() => {
                         setForm(
                           settings ?? {
@@ -397,14 +426,22 @@ export default function FinancePage() {
                             ? "var(--warning)"
                             : "var(--good)"
                       }
-                      label="Budget used"
+                      label={t("finance.budgetUsed")}
                     />
                     <div className="text-ink-3 mt-1.5 flex justify-between text-[12px]">
-                      <span>{Math.round(budgetUsed)}% used</span>
+                      <span>
+                        {t("finance.percentUsed", {
+                          percent: Math.round(budgetUsed),
+                        })}
+                      </span>
                       <span>
                         {overBudget
-                          ? `${formatMoney(-remaining, currency)} over`
-                          : `${formatMoney(remaining, currency)} left`}
+                          ? t("finance.amountOver", {
+                              amount: formatMoney(-remaining, currency, locale),
+                            })
+                          : t("finance.amountLeft", {
+                              amount: formatMoney(remaining, currency, locale),
+                            })}
                       </span>
                     </div>
                   </div>
@@ -413,28 +450,34 @@ export default function FinancePage() {
                   <div className="border-line grid gap-3 border-t pt-4 sm:grid-cols-3">
                     {[
                       {
-                        label: "Per month",
+                        label: t("finance.planPerMonth"),
                         value: plan.perMonth,
                         note:
                           savingsGoal > 0
-                            ? `after ${formatMoney(savingsGoal, currency)} saved`
-                            : "income, nothing set aside",
+                            ? t("finance.afterSaved", {
+                                amount: formatMoney(
+                                  savingsGoal,
+                                  currency,
+                                  locale,
+                                ),
+                              })
+                            : t("finance.incomeNothingAside"),
                       },
                       {
-                        label: "Per week",
+                        label: t("finance.planPerWeek"),
                         value: plan.perWeek,
-                        note: "steady pace",
+                        note: t("finance.steadyPace"),
                       },
                       {
-                        label: "Per day",
+                        label: t("finance.planPerDay"),
                         value: plan.perDay,
-                        note: `across ${totalDays} days`,
+                        note: t("finance.acrossDays", { count: totalDays }),
                       },
                     ].map((row) => (
                       <div key={row.label}>
                         <p className="text-ink-3 text-[12px]">{row.label}</p>
                         <p className="text-ink mt-0.5 text-[17px] font-semibold tabular-nums">
-                          {formatMoney(row.value, currency)}
+                          {formatMoney(row.value, currency, locale)}
                         </p>
                         <p className="text-ink-3 text-[11.5px]">{row.note}</p>
                       </div>
@@ -446,13 +489,15 @@ export default function FinancePage() {
               {/* Spending pace */}
               <Card>
                 <CardHeader
-                  title="Spending pace"
-                  subtitle="Cumulative spend against a straight line to your limit"
+                  title={t("finance.spendingPace")}
+                  subtitle={t("finance.spendingPaceSubtitle")}
                 />
                 <CardBody>
                   {byDay.length === 0 ? (
                     <p className="text-ink-3 py-6 text-center text-[13px]">
-                      No expenses recorded for {monthLabel(month)}.
+                      {t("finance.noExpensesFor", {
+                        month: monthLabel(month, locale),
+                      })}
                     </p>
                   ) : (
                     <LineChart
@@ -462,17 +507,17 @@ export default function FinancePage() {
                       series={[
                         {
                           key: "spent",
-                          label: "Actual spend",
+                          label: t("finance.actualSpend"),
                           color: "var(--series-1)",
                         },
                         {
                           key: "pace",
-                          label: "On pace for the limit",
+                          label: t("finance.onPace"),
                           color: "var(--axis)",
                           reference: true,
                         },
                       ]}
-                      formatValue={(value) => formatMoney(value, currency)}
+                      formatValue={(value) => formatMoney(value, currency, locale)}
                     />
                   )}
                 </CardBody>
@@ -481,9 +526,18 @@ export default function FinancePage() {
               {/* Expense table */}
               <Card>
                 <CardHeader
-                  title="Expenses"
+                  title={t("finance.expenses")}
                   icon={<Receipt className="size-4" />}
-                  subtitle={`${expenses.length} ${expenses.length === 1 ? "entry" : "entries"} in ${monthLabel(month)}`}
+                  subtitle={
+                    expenses.length === 1
+                      ? t("finance.oneEntryIn", {
+                          month: monthLabel(month, locale),
+                        })
+                      : t("finance.entriesIn", {
+                          count: expenses.length,
+                          month: monthLabel(month, locale),
+                        })
+                  }
                   action={
                     <Button
                       variant="secondary"
@@ -491,7 +545,7 @@ export default function FinancePage() {
                       onClick={() => setDraft(emptyExpense())}
                     >
                       <Plus className="size-3.5" />
-                      Add
+                      {t("common.add")}
                     </Button>
                   }
                 />
@@ -501,8 +555,8 @@ export default function FinancePage() {
                   ) : expenses.length === 0 ? (
                     <EmptyState
                       icon={<Receipt className="size-5" />}
-                      title="No expenses logged"
-                      message="Log what you spend and it'll show up here, grouped by category."
+                      title={t("finance.noExpensesTitle")}
+                      message={t("finance.noExpensesMessage")}
                       action={
                         <Button
                           variant="primary"
@@ -510,7 +564,7 @@ export default function FinancePage() {
                           onClick={() => setDraft(emptyExpense())}
                         >
                           <Plus className="size-4" />
-                          Add expense
+                          {t("finance.addExpense")}
                         </Button>
                       }
                     />
@@ -519,19 +573,33 @@ export default function FinancePage() {
                       <table className="w-full min-w-[34rem] border-collapse text-left">
                         <thead>
                           <tr className="border-line border-b">
-                            {["Date", "Description", "Category", "Amount", ""].map(
-                              (heading) => (
-                                <th
-                                  key={heading}
-                                  className={
-                                    "text-ink-3 py-2 pr-3 text-[11.5px] font-medium " +
-                                    (heading === "Amount" ? "text-right" : "")
-                                  }
-                                >
-                                  {heading}
-                                </th>
-                              ),
-                            )}
+                            {/* Alignment is a flag rather than a comparison
+                                against the label text, which stops working once
+                                the label is translated. */}
+                            {[
+                              { id: "date", label: t("finance.colDate") },
+                              {
+                                id: "description",
+                                label: t("finance.colDescription"),
+                              },
+                              { id: "category", label: t("finance.colCategory") },
+                              {
+                                id: "amount",
+                                label: t("finance.colAmount"),
+                                right: true,
+                              },
+                              { id: "actions", label: "" },
+                            ].map((heading) => (
+                              <th
+                                key={heading.id}
+                                className={
+                                  "text-ink-3 py-2 pr-3 text-[11.5px] font-medium " +
+                                  (heading.right ? "text-right" : "")
+                                }
+                              >
+                                {heading.label}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody>
@@ -541,7 +609,7 @@ export default function FinancePage() {
                               className="border-line group border-b last:border-b-0"
                             >
                               <td className="text-ink-3 py-2 pr-3 text-[12.5px] whitespace-nowrap tabular-nums">
-                                {formatShortDate(expense.date)}
+                                {formatShortDate(expense.date, locale)}
                               </td>
                               <td className="text-ink py-2 pr-3 text-[13px]">
                                 {expense.description}
@@ -550,14 +618,14 @@ export default function FinancePage() {
                                 <ExpenseCategoryBadge category={expense.category} />
                               </td>
                               <td className="text-ink py-2 pr-3 text-right text-[13px] font-medium tabular-nums">
-                                {formatMoney(expense.amount, currency)}
+                                {formatMoney(expense.amount, currency, locale)}
                               </td>
                               <td className="py-2">
                                 <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Edit"
+                                    aria-label={t("common.edit")}
                                     onClick={() =>
                                       setDraft({
                                         id: expense.id,
@@ -573,7 +641,7 @@ export default function FinancePage() {
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    aria-label="Delete"
+                                    aria-label={t("common.delete")}
                                     onClick={() => setDeleting(expense)}
                                   >
                                     <Trash2 className="size-3.5" />
@@ -586,10 +654,10 @@ export default function FinancePage() {
                         <tfoot>
                           <tr>
                             <td colSpan={3} className="text-ink-2 py-2.5 text-[13px]">
-                              Total
+                              {t("common.total")}
                             </td>
                             <td className="text-ink py-2.5 pr-3 text-right text-[13.5px] font-semibold tabular-nums">
-                              {formatMoney(spent, currency)}
+                              {formatMoney(spent, currency, locale)}
                             </td>
                             <td />
                           </tr>
@@ -605,17 +673,17 @@ export default function FinancePage() {
             <div className="min-w-0 space-y-4">
               <Card>
                 <CardHeader
-                  title="Spending by category"
+                  title={t("finance.spendingByCategory")}
                   subtitle={
                     categoryRows.length > 0
-                      ? `Largest: ${categoryRows[0].label}`
+                      ? t("finance.largest", { category: categoryRows[0].label })
                       : undefined
                   }
                 />
                 <CardBody>
                   {categoryRows.length === 0 ? (
                     <p className="text-ink-3 text-[13px]">
-                      Nothing to chart yet this month.
+                      {t("finance.nothingToChart")}
                     </p>
                   ) : (
                     <BarList
@@ -625,7 +693,7 @@ export default function FinancePage() {
                         value: row.total,
                         color: row.color,
                       }))}
-                      format={(value) => formatMoney(value, currency)}
+                      format={(value) => formatMoney(value, currency, locale)}
                     />
                   )}
                 </CardBody>
@@ -634,9 +702,11 @@ export default function FinancePage() {
               {savingsGoal > 0 && (
                 <Card>
                   <CardHeader
-                    title="Monthly savings"
+                    title={t("finance.monthlySavings")}
                     icon={<PiggyBank className="size-4" />}
-                    subtitle={`Target of ${formatMoney(savingsGoal, currency)} per month`}
+                    subtitle={t("finance.savingsTarget", {
+                      amount: formatMoney(savingsGoal, currency, locale),
+                    })}
                   />
                   <CardBody>
                     {(() => {
@@ -650,19 +720,26 @@ export default function FinancePage() {
                             max={savingsGoal}
                             color="var(--series-6)"
                             height={10}
-                            label="Savings progress"
+                            label={t("finance.savingsProgress")}
                           />
                           <p className="text-ink-3 mt-2 text-[12.5px]">
-                            {formatMoney(saved, currency)} logged under the
-                            savings category this month
+                            {t("finance.savedLogged", {
+                              amount: formatMoney(saved, currency, locale),
+                            })}
                             {saved < savingsGoal &&
-                              ` - ${formatMoney(savingsGoal - saved, currency)} to go`}
-                            . For a specific purchase, use{" "}
+                              ` ${t("finance.toGo", {
+                                amount: formatMoney(
+                                  savingsGoal - saved,
+                                  currency,
+                                  locale,
+                                ),
+                              })}`}
+                            . {t("finance.forPurchaseUse")}{" "}
                             <button
                               onClick={() => setTab("goals")}
                               className="text-accent font-medium hover:underline"
                             >
-                              Goals
+                              {t("finance.tabGoals")}
                             </button>
                             .
                           </p>
@@ -681,15 +758,15 @@ export default function FinancePage() {
       <Modal
         open={editingSettings}
         onClose={() => setEditingSettings(false)}
-        title="Budget settings"
-        description="Used for the spending limit and the planning figures."
+        title={t("finance.budgetSettings")}
+        description={t("finance.budgetSettingsDesc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditingSettings(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" onClick={saveSettings} loading={saving}>
-              Save settings
+              {t("finance.saveSettings")}
             </Button>
           </>
         }
@@ -697,8 +774,8 @@ export default function FinancePage() {
         {form && (
           <div className="space-y-4">
             <Input
-              label="Monthly income"
-              hint="Salary and anything else that comes in"
+              label={t("finance.monthlyIncome")}
+              hint={t("finance.incomeHint")}
               type="number"
               min={0}
               step="0.01"
@@ -709,8 +786,8 @@ export default function FinancePage() {
               placeholder="3200"
             />
             <Input
-              label="Monthly spending limit"
-              hint="Leave at 0 to use your income"
+              label={t("finance.limitLabel")}
+              hint={t("finance.limitHint")}
               type="number"
               min={0}
               step="0.01"
@@ -721,7 +798,7 @@ export default function FinancePage() {
               placeholder="2400"
             />
             <Input
-              label="Savings goal per month"
+              label={t("finance.savingsGoalLabel")}
               type="number"
               min={0}
               step="0.01"
@@ -732,7 +809,7 @@ export default function FinancePage() {
               placeholder="500"
             />
             <Select
-              label="Currency"
+              label={t("finance.currency")}
               value={form.currency}
               onChange={(event) =>
                 setForm({ ...form, currency: event.target.value })
@@ -754,7 +831,7 @@ export default function FinancePage() {
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit expense" : "Add expense"}
+        title={draft?.id ? t("finance.editExpense") : t("finance.addExpense")}
         footer={
           <>
             {draft?.id && (
@@ -768,14 +845,14 @@ export default function FinancePage() {
                 }}
               >
                 <Trash2 className="size-4" />
-                Delete
+                {t("common.delete")}
               </Button>
             )}
             <Button variant="ghost" onClick={() => setDraft(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" onClick={saveExpense} loading={saving}>
-              {draft?.id ? "Save changes" : "Add expense"}
+              {draft?.id ? t("common.saveChanges") : t("finance.addExpense")}
             </Button>
           </>
         }
@@ -783,18 +860,18 @@ export default function FinancePage() {
         {draft && (
           <div className="space-y-4">
             <Input
-              label="Description"
+              label={t("finance.colDescription")}
               value={draft.description}
               onChange={(event) =>
                 setDraft({ ...draft, description: event.target.value })
               }
-              placeholder="Weekly groceries"
+              placeholder={t("finance.descriptionPlaceholder")}
               autoFocus
             />
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label={`Amount (${currency})`}
+                label={t("investments.amountLabel", { currency })}
                 type="number"
                 min={0}
                 step="0.01"
@@ -805,7 +882,7 @@ export default function FinancePage() {
                 placeholder="0.00"
               />
               <Input
-                label="Date"
+                label={t("finance.colDate")}
                 type="date"
                 value={draft.date}
                 onChange={(event) =>
@@ -815,7 +892,7 @@ export default function FinancePage() {
             </div>
 
             <Select
-              label="Category"
+              label={t("finance.colCategory")}
               value={draft.category}
               onChange={(event) =>
                 setDraft({
@@ -826,7 +903,7 @@ export default function FinancePage() {
             >
               {EXPENSE_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
-                  {titleCase(category)}
+                  {tv("expense", category)}
                 </option>
               ))}
             </Select>
@@ -838,12 +915,12 @@ export default function FinancePage() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && removeExpense(deleting)}
-        title="Delete expense?"
+        title={t("finance.deleteExpenseTitle")}
         message={
           <>
             <strong className="text-ink">{deleting?.description}</strong> (
-            {deleting ? formatMoney(deleting.amount, currency) : ""}) will be
-            removed.
+            {deleting ? formatMoney(deleting.amount, currency, locale) : ""}){" "}
+            {t("finance.willBeRemoved")}
           </>
         }
       />

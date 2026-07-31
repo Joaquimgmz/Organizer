@@ -7,27 +7,38 @@ import {
   Wallet,
 } from "lucide-react";
 import { currentUser } from "@/lib/auth";
+import { translate, type TranslationKey } from "@/lib/i18n";
+import { getLanguage } from "@/lib/i18n/server";
 
-const HIGHLIGHTS = [
+/**
+ * Marketing highlights. These carry translation keys rather than text because
+ * this layout is a server component and so can't call the `useT` hook — the
+ * keys are resolved with `translate` once the language cookie has been read.
+ */
+const HIGHLIGHTS: {
+  icon: typeof CalendarDays;
+  titleKey: TranslationKey;
+  bodyKey: TranslationKey;
+}[] = [
   {
     icon: CalendarDays,
-    title: "Plan the day, hour by hour",
-    body: "Timeline view of everything you do, with reminders on a calendar and an hourly table.",
+    titleKey: "auth.h1Title",
+    bodyKey: "auth.h1Body",
   },
   {
     icon: Wallet,
-    title: "Know where the money goes",
-    body: "Income, limits, expenses by category, savings goals and recurring investments.",
+    titleKey: "auth.h2Title",
+    bodyKey: "auth.h2Body",
   },
   {
     icon: Dumbbell,
-    title: "Train with a record",
-    body: "Templates for push, pull and leg days, plus weight and volume progress over time.",
+    titleKey: "auth.h3Title",
+    bodyKey: "auth.h3Body",
   },
   {
     icon: NotebookPen,
-    title: "Keep the diary honest",
-    body: "Daily entries with mood tracking, tags and full-text search over everything you've written.",
+    titleKey: "auth.h4Title",
+    bodyKey: "auth.h4Body",
   },
 ];
 
@@ -38,6 +49,9 @@ export default async function AuthLayout({
 }) {
   // Already signed in? Skip the form.
   if (await currentUser()) redirect("/dashboard");
+
+  const language = await getLanguage();
+  const t = (key: TranslationKey) => translate(language, key);
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
@@ -62,31 +76,30 @@ export default async function AuthLayout({
             <Sparkles className="size-[18px]" />
           </span>
           <span className="text-ink text-[15px] font-semibold tracking-tight">
-            Routine Organizer
+            {t("nav.appName")}
           </span>
         </div>
 
         <div className="relative mt-auto pt-14">
           <h1 className="text-ink max-w-lg text-[2.1rem] leading-[1.15] font-semibold tracking-[-0.02em] xl:text-[2.5rem]">
-            Your whole day in one place — not five apps.
+            {t("auth.heroTitle")}
           </h1>
           <p className="text-ink-2 mt-4 max-w-md text-[15px] leading-relaxed">
-            Routine, reminders, diary, savings goals, investments and training,
-            all in one place.
+            {t("auth.heroBody")}
           </p>
 
           <ul className="mt-10 grid max-w-xl gap-5 sm:grid-cols-2">
             {HIGHLIGHTS.map((item) => (
-              <li key={item.title} className="flex gap-3">
+              <li key={item.titleKey} className="flex gap-3">
                 <span className="text-accent bg-accent-soft mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg">
                   <item.icon className="size-4" />
                 </span>
                 <div>
                   <p className="text-ink text-[13.5px] font-medium">
-                    {item.title}
+                    {t(item.titleKey)}
                   </p>
                   <p className="text-ink-3 mt-0.5 text-[12.5px] leading-relaxed">
-                    {item.body}
+                    {t(item.bodyKey)}
                   </p>
                 </div>
               </li>
@@ -95,8 +108,7 @@ export default async function AuthLayout({
         </div>
 
         <p className="text-ink-3 relative mt-auto pt-14 text-[12px]">
-          Runs locally on SQLite. Your data never leaves the machine unless you
-          connect a fitness provider.
+          {t("auth.footerNote")}
         </p>
       </aside>
 

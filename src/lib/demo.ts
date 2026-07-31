@@ -271,8 +271,19 @@ export async function seedDemoData(userId: string) {
     }
 
     // ── Investments ─────────────────────────────────────────────────────────
-    const investments: [string, number, number, string, number, string][] = [
-      // [title, downPayment, contribution, frequency, monthsAgoStarted, notes]
+    // The last element is the income history: payouts actually received, as
+    // [monthsAgo, amount, note]. The spare-change fund deliberately has none,
+    // so the "no income logged yet" state shows up in the example data too.
+    const investments: [
+      string,
+      number,
+      number,
+      string,
+      number,
+      string,
+      [number, number, string][],
+    ][] = [
+      // [title, downPayment, contribution, frequency, monthsAgoStarted, notes, income]
       [
         "Index fund (S&P 500)",
         2000,
@@ -280,6 +291,14 @@ export async function seedDemoData(userId: string) {
         "monthly",
         18,
         "Automatic transfer on the 1st. Not touching this one.",
+        [
+          [15, 21.4, "Quarterly dividend"],
+          [12, 25.8, "Quarterly dividend"],
+          [9, 29.15, "Quarterly dividend"],
+          [6, 33.6, "Quarterly dividend"],
+          [3, 37.9, "Quarterly dividend"],
+          [1, 41.25, "Quarterly dividend"],
+        ],
       ],
       [
         "Retirement account",
@@ -288,6 +307,10 @@ export async function seedDemoData(userId: string) {
         "monthly",
         24,
         "Employer matches the first 3%.",
+        [
+          [13, 96.5, "Annual distribution"],
+          [1, 114.2, "Annual distribution"],
+        ],
       ],
       [
         "Spare change fund",
@@ -296,6 +319,7 @@ export async function seedDemoData(userId: string) {
         "daily",
         3,
         "Rounds up card purchases. Small but it adds up.",
+        [],
       ],
       [
         "Government bonds",
@@ -304,6 +328,10 @@ export async function seedDemoData(userId: string) {
         "weekly",
         7,
         "Lower return, but it's the stable part of the mix.",
+        [
+          [5, 18.75, "Coupon payment"],
+          [2, 22.4, "Coupon payment"],
+        ],
       ],
     ];
 
@@ -314,12 +342,14 @@ export async function seedDemoData(userId: string) {
       frequency,
       monthsAgo,
       notes,
+      income,
     ] of investments) {
+      const investmentId = uid("i_");
       await run(
         `INSERT INTO investments
            (id, user_id, title, down_payment, contribution_amount, frequency, start_date, notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        uid("i_"),
+        investmentId,
         userId,
         title,
         downPayment,
@@ -329,6 +359,21 @@ export async function seedDemoData(userId: string) {
         notes,
         stamp,
       );
+
+      for (const [incomeMonthsAgo, amount, note] of income) {
+        await run(
+          `INSERT INTO investment_income
+             (id, investment_id, user_id, amount, date, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          uid("ii_"),
+          investmentId,
+          userId,
+          amount,
+          addMonths(t, -incomeMonthsAgo),
+          note,
+          stamp,
+        );
+      }
     }
 
     // ── Workout templates ───────────────────────────────────────────────────
@@ -524,6 +569,11 @@ export async function clearUserData(userId: string) {
       "expenses",
       "workout_templates",
       "fitness_daily",
+      // Deleted explicitly, ahead of investments, rather than left to the
+      // ON DELETE CASCADE — a wipe shouldn't depend on the foreign_keys pragma
+      // being on for this connection. It has its own user_id, so the order of
+      // these two only matters for tidiness, not correctness.
+      "investment_income",
       "investments",
     ]) {
       await run(`DELETE FROM ${table} WHERE user_id = ?`, userId);

@@ -4,6 +4,7 @@ import { LogOut, Menu, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { useT } from "@/components/LanguageProvider";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/client";
@@ -22,6 +23,7 @@ function initials(name: string) {
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const t = useT();
 
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-2">
@@ -52,7 +54,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                   !active && "group-hover:scale-110",
                 )}
               />
-              <span className="truncate">{item.label}</span>
+              <span className="truncate">{t(item.labelKey)}</span>
               {active && (
                 <span
                   aria-hidden
@@ -76,6 +78,7 @@ export function Shell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -98,7 +101,7 @@ export function Shell({
         <Sparkles className="size-4" />
       </span>
       <span className="text-ink truncate text-[14px] font-semibold tracking-tight">
-        Routine Organizer
+        {t("nav.appName")}
       </span>
     </Link>
   );
@@ -121,8 +124,8 @@ export function Shell({
           size="icon-sm"
           onClick={signOut}
           loading={signingOut}
-          aria-label="Sign out"
-          title="Sign out"
+          aria-label={t("nav.signOut")}
+          title={t("nav.signOut")}
         >
           {!signingOut && <LogOut className="size-4" />}
         </Button>
@@ -148,7 +151,7 @@ export function Shell({
           variant="ghost"
           size="icon"
           onClick={() => setDrawerOpen(true)}
-          aria-label="Open menu"
+          aria-label={t("nav.openMenu")}
         >
           <Menu className="size-5" />
         </Button>
@@ -160,7 +163,7 @@ export function Shell({
             <Sparkles className="size-3.5" />
           </span>
           <span className="text-ink truncate text-[14px] font-semibold">
-            Routine Organizer
+            {t("nav.appName")}
           </span>
         </Link>
       </header>
@@ -179,7 +182,7 @@ export function Shell({
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setDrawerOpen(false)}
-                aria-label="Close menu"
+                aria-label={t("nav.closeMenu")}
               >
                 <X className="size-4" />
               </Button>
@@ -208,7 +211,7 @@ export function Shell({
               )}
             >
               <item.icon className="size-[18px]" />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}

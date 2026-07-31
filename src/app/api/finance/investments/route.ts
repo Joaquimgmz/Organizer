@@ -9,17 +9,54 @@ import {
   withUser,
 } from "@/lib/api";
 import { all, run } from "@/lib/db";
-import { FREQUENCIES, type Investment } from "@/lib/types";
+import {
+  FREQUENCIES,
+  type Investment,
+  type InvestmentIncome,
+} from "@/lib/types";
 import { nowIso, today, uid } from "@/lib/utils";
 
-export const GET = withUser(async (user) => {
-  const investments = await all<Investment>(
+type InvestmentRow = Omit<Investment, "income">;
+
+/**
+ * Investments with their income history attached in one extra query.
+ *
+ * Same two-query shape as loadGoals: one row set per table, grouped in memory,
+ * so adding income costs a single round trip rather than one per investment.
+ */
+export async function loadInvestments(userId: string): Promise<Investment[]> {
+  const investments = await all<InvestmentRow>(
     `SELECT id, title, down_payment, contribution_amount, frequency, start_date, notes, created_at
        FROM investments WHERE user_id = ? ORDER BY created_at DESC`,
-    user.id,
+    userId,
   );
-  return json({ investments });
-});
+  if (investments.length === 0) return [];
+
+  const placeholders = investments.map(() => "?").join(", ");
+  const income = await all<InvestmentIncome>(
+    `SELECT id, investment_id, amount, date, note, created_at
+       FROM investment_income
+      WHERE user_id = ? AND investment_id IN (${placeholders})
+      ORDER BY date DESC, created_at DESC`,
+    userId,
+    ...investments.map((investment) => investment.id),
+  );
+
+  const grouped = new Map<string, InvestmentIncome[]>();
+  for (const row of income) {
+    if (!grouped.has(row.investment_id)) grouped.set(row.investment_id, []);
+    grouped.get(row.investment_id)!.push(row);
+  }
+
+  return investments.map((investment) => ({
+    ...investment,
+    income: grouped.get(investment.id) ?? [],
+  }));
+}
+
+export const GET = withUser(async (user) =>
+  json({ investments: await loadInvestments(user.id) }),
+);
 
 export const POST = withUser(async (user, request) => {
   const input = await body<Record<string, unknown>>(request);

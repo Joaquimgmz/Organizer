@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Page } from "@/components/layout/Shell";
+import { useLanguage } from "@/components/LanguageProvider";
 import { Badge, PriorityBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -85,6 +86,7 @@ function MonthCalendar({
   occurrences: ReminderOccurrence[];
   onSelect: (date: string) => void;
 }) {
+  const { locale } = useLanguage();
   const first = fromDateKey(startOfMonth(month));
   const last = fromDateKey(endOfMonth(month));
 
@@ -106,12 +108,22 @@ function MonthCalendar({
     byDate.get(occurrence.occurrence_date)!.push(occurrence);
   }
 
-  const t = today();
+  // Renamed from `t` so it cannot shadow the translate function.
+  const todayKey = today();
+
+  // Weekday names come from Intl rather than a dictionary: it already knows
+  // every locale's abbreviations, and the grid is Monday-first (2024-01-01 was
+  // a Monday, so it seeds the sequence correctly).
+  const weekdays = Array.from({ length: 7 }, (_, index) =>
+    new Date(2024, 0, 1 + index).toLocaleDateString(locale, {
+      weekday: "short",
+    }),
+  );
 
   return (
     <div>
       <div className="text-ink-3 mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
+        {weekdays.map((label) => (
           <div key={label} className="py-1">
             {label.slice(0, 1)}
             <span className="hidden sm:inline">{label.slice(1)}</span>
@@ -126,7 +138,7 @@ function MonthCalendar({
           const items = byDate.get(date) ?? [];
           const pending = items.filter((item) => !item.is_completed);
           const isSelected = date === selected;
-          const isToday = date === t;
+          const isToday = date === todayKey;
 
           return (
             <button
@@ -189,6 +201,7 @@ function HourTable({
   onEdit: (occurrence: ReminderOccurrence) => void;
   onAdd: (time: string) => void;
 }) {
+  const { t } = useLanguage();
   const rows = Array.from(
     { length: TABLE_END - TABLE_START + 1 },
     (_, index) => TABLE_START + index,
@@ -209,10 +222,10 @@ function HourTable({
         <thead>
           <tr className="border-line border-b">
             <th className="text-ink-3 w-20 py-2 pr-2 text-[11.5px] font-medium">
-              Time
+              {t("rem.colTime")}
             </th>
             <th className="text-ink-3 py-2 text-[11.5px] font-medium">
-              Scheduled
+              {t("rem.colScheduled")}
             </th>
           </tr>
         </thead>
@@ -241,7 +254,7 @@ function HourTable({
                       className="text-ink-3 hover:text-accent flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-[12px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                     >
                       <Plus className="size-3" />
-                      Add at this hour
+                      {t("rem.addAtThisHour")}
                     </button>
                   ) : (
                     <ul className="space-y-1">
@@ -291,6 +304,7 @@ function HourTable({
 
 export default function RemindersPage() {
   const { push } = useToast();
+  const { t, locale } = useLanguage();
   const [month, setMonth] = useState(startOfMonth(today()));
   const [selected, setSelected] = useState(today());
   const [view, setView] = useState<"table" | "list">("table");
@@ -316,9 +330,10 @@ export default function RemindersPage() {
   );
 
   const upcoming = useMemo(() => {
-    const t = today();
+    // Renamed from `t` so it cannot shadow the translate function.
+  const todayKey = today();
     return occurrences
-      .filter((item) => item.occurrence_date >= t && !item.is_completed)
+      .filter((item) => item.occurrence_date >= todayKey && !item.is_completed)
       .slice(0, 12);
   }, [occurrences]);
 
@@ -327,7 +342,7 @@ export default function RemindersPage() {
   async function save() {
     if (!draft) return;
     if (!draft.title.trim()) {
-      push("Give the reminder a title.", "error");
+      push(t("rem.needTitle"), "error");
       return;
     }
 
@@ -335,15 +350,18 @@ export default function RemindersPage() {
     try {
       if (draft.id) {
         await api.patch(`/api/reminders/${draft.id}`, draft);
-        push("Reminder updated.");
+        push(t("rem.updated"));
       } else {
         await api.post("/api/reminders", draft);
-        push("Reminder added.");
+        push(t("rem.added"));
       }
       setDraft(null);
       await reload();
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't save.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("common.couldntSave"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -357,17 +375,17 @@ export default function RemindersPage() {
       });
       await reload();
     } catch {
-      push("Couldn't update that reminder.", "error");
+      push(t("rem.couldntUpdate"), "error");
     }
   }
 
   async function remove(reminder: Reminder) {
     try {
       await api.delete(`/api/reminders/${reminder.id}`);
-      push("Reminder deleted.");
+      push(t("rem.deleted"));
       await reload();
     } catch {
-      push("Couldn't delete that reminder.", "error");
+      push(t("rem.couldntDelete"), "error");
     }
   }
 
@@ -385,8 +403,16 @@ export default function RemindersPage() {
 
   return (
     <Page
-      title="Reminders"
-      subtitle={`${reminders.length} reminders - ${pendingToday} still open on ${formatDate(selected, { month: "short", day: "numeric" })}`}
+      title={t("rem.title")}
+      subtitle={t("rem.subtitle", {
+        count: reminders.length,
+        open: pendingToday,
+        date: formatDate(
+          selected,
+          { month: "short", day: "numeric" },
+          locale,
+        ),
+      })}
       actions={
         <>
           <Segmented
@@ -399,7 +425,7 @@ export default function RemindersPage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Table2 className="size-3.5" />
-                    Day table
+                    {t("rem.viewDayTable")}
                   </span>
                 ),
               },
@@ -408,7 +434,7 @@ export default function RemindersPage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Bell className="size-3.5" />
-                    All
+                    {t("rem.viewAll")}
                   </span>
                 ),
               },
@@ -420,7 +446,7 @@ export default function RemindersPage() {
             onClick={() => setDraft(emptyDraft(selected))}
           >
             <Plus className="size-4" />
-            New reminder
+            {t("rem.newReminder")}
           </Button>
         </>
       }
@@ -437,7 +463,7 @@ export default function RemindersPage() {
         <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader
-              title={monthLabel(month)}
+              title={monthLabel(month, locale)}
               icon={<CalendarDays className="size-4" />}
               action={
                 <>
@@ -445,7 +471,7 @@ export default function RemindersPage() {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setMonth(addMonths(month, -1))}
-                    aria-label="Previous month"
+                    aria-label={t("finance.prevMonth")}
                   >
                     <ChevronLeft className="size-4" />
                   </Button>
@@ -453,7 +479,7 @@ export default function RemindersPage() {
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => setMonth(addMonths(month, 1))}
-                    aria-label="Next month"
+                    aria-label={t("finance.nextMonth")}
                   >
                     <ChevronRight className="size-4" />
                   </Button>
@@ -478,7 +504,7 @@ export default function RemindersPage() {
                       className="size-1.5 rounded-full"
                       style={{ background: PRIORITY_COLOR[priority] }}
                     />
-                    <span className="text-ink-3">{priority}</span>
+                    <span className="text-ink-3">{t(`priority.${priority}`)}</span>
                   </span>
                 ))}
                 <span className="flex items-center gap-1.5">
@@ -486,7 +512,7 @@ export default function RemindersPage() {
                     className="size-1.5 rounded-full"
                     style={{ background: "var(--good)" }}
                   />
-                  <span className="text-ink-3">all done</span>
+                  <span className="text-ink-3">{t("rem.allDone")}</span>
                 </span>
               </div>
             </CardBody>
@@ -494,14 +520,14 @@ export default function RemindersPage() {
 
           <Card>
             <CardHeader
-              title="Coming up"
+              title={t("rem.comingUp")}
               icon={<BellRing className="size-4" />}
-              subtitle="Next open reminders"
+              subtitle={t("rem.nextOpen")}
             />
             <CardBody>
               {upcoming.length === 0 ? (
                 <p className="text-ink-3 text-[13px]">
-                  Nothing open. Everything scheduled is ticked off.
+                  {t("rem.nothingOpen")}
                 </p>
               ) : (
                 <ul className="space-y-1.5">
@@ -526,11 +552,14 @@ export default function RemindersPage() {
                           {item.title}
                         </span>
                         <span className="text-ink-3 text-[11.5px]">
-                          {formatDate(item.occurrence_date, {
-                            month: "short",
-                            day: "numeric",
-                          })}{" "}
-                          at {formatTime(item.time)}
+                          {t("rem.atTime", {
+                            date: formatDate(
+                              item.occurrence_date,
+                              { month: "short", day: "numeric" },
+                              locale,
+                            ),
+                            time: formatTime(item.time),
+                          })}
                         </span>
                       </button>
                     </li>
@@ -546,13 +575,13 @@ export default function RemindersPage() {
           <CardHeader
             title={
               view === "table"
-                ? formatDate(selected)
-                : `All reminders (${reminders.length})`
+                ? formatDate(selected, undefined, locale)
+                : t("rem.allReminders", { count: reminders.length })
             }
             subtitle={
               view === "table"
-                ? "Every hour of the day, so you can see where things sit"
-                : "Including repeats and completed one-offs"
+                ? t("rem.dayTableSubtitle")
+                : t("rem.listSubtitle")
             }
             action={
               view === "table" && (
@@ -580,8 +609,8 @@ export default function RemindersPage() {
             ) : reminders.length === 0 ? (
               <EmptyState
                 icon={<Bell className="size-5" />}
-                title="No reminders yet"
-                message="Add the things you need to remember and they'll appear on the calendar."
+                title={t("rem.emptyTitle")}
+                message={t("rem.emptyMessage")}
                 action={
                   <Button
                     variant="primary"
@@ -589,7 +618,7 @@ export default function RemindersPage() {
                     onClick={() => setDraft(emptyDraft(selected))}
                   >
                     <Plus className="size-4" />
-                    New reminder
+                    {t("rem.newReminder")}
                   </Button>
                 }
               />
@@ -598,16 +627,20 @@ export default function RemindersPage() {
                 <table className="w-full min-w-[38rem] border-collapse text-left">
                   <thead>
                     <tr className="border-line border-b">
-                      {["Reminder", "When", "Repeat", "Priority", ""].map(
-                        (heading) => (
-                          <th
-                            key={heading}
-                            className="text-ink-3 py-2 pr-3 text-[11.5px] font-medium"
-                          >
-                            {heading}
-                          </th>
-                        ),
-                      )}
+                      {[
+                        { id: "reminder", label: t("rem.colReminder") },
+                        { id: "when", label: t("rem.colWhen") },
+                        { id: "repeat", label: t("rem.colRepeat") },
+                        { id: "priority", label: t("rem.colPriority") },
+                        { id: "actions", label: "" },
+                      ].map((heading) => (
+                        <th
+                          key={heading.id}
+                          className="text-ink-3 py-2 pr-3 text-[11.5px] font-medium"
+                        >
+                          {heading.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -627,10 +660,11 @@ export default function RemindersPage() {
                           )}
                         </td>
                         <td className="text-ink-2 py-2.5 pr-3 text-[12.5px] whitespace-nowrap">
-                          {formatDate(reminder.date, {
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {formatDate(
+                            reminder.date,
+                            { month: "short", day: "numeric" },
+                            locale,
+                          )}
                           <span className="text-ink-3">
                             {" "}
                             {formatTime(reminder.time)}
@@ -638,11 +672,13 @@ export default function RemindersPage() {
                         </td>
                         <td className="py-2.5 pr-3">
                           {reminder.repeat_rule === "none" ? (
-                            <span className="text-ink-3 text-[12px]">Once</span>
+                            <span className="text-ink-3 text-[12px]">
+                              {t("rem.once")}
+                            </span>
                           ) : (
                             <Badge color="var(--series-7)">
                               <Repeat className="size-3" />
-                              {reminder.repeat_rule}
+                              {t(`repeat.${reminder.repeat_rule}`)}
                             </Badge>
                           )}
                         </td>
@@ -654,7 +690,7 @@ export default function RemindersPage() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Edit"
+                              aria-label={t("common.edit")}
                               onClick={() => editFrom(reminder)}
                             >
                               <Pencil className="size-3.5" />
@@ -662,7 +698,7 @@ export default function RemindersPage() {
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Delete"
+                              aria-label={t("common.delete")}
                               onClick={() => setDeleting(reminder)}
                             >
                               <Trash2 className="size-3.5" />
@@ -682,7 +718,7 @@ export default function RemindersPage() {
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit reminder" : "New reminder"}
+        title={draft?.id ? t("rem.editTitle") : t("rem.newReminder")}
         footer={
           <>
             {draft?.id && (
@@ -703,7 +739,7 @@ export default function RemindersPage() {
               Cancel
             </Button>
             <Button variant="primary" onClick={save} loading={saving}>
-              {draft?.id ? "Save changes" : "Add reminder"}
+              {draft?.id ? t("common.saveChanges") : t("rem.addReminder")}
             </Button>
           </>
         }
@@ -711,29 +747,29 @@ export default function RemindersPage() {
         {draft && (
           <div className="space-y-4">
             <Input
-              label="Title"
+              label={t("rem.titleLabel")}
               value={draft.title}
               onChange={(event) =>
                 setDraft({ ...draft, title: event.target.value })
               }
-              placeholder="Submit assignment"
+              placeholder={t("rem.titlePlaceholder")}
               autoFocus
             />
 
             <Textarea
-              label="Description"
-              hint="Optional"
+              label={t("finance.colDescription")}
+              hint={t("common.optional")}
               rows={2}
               value={draft.description}
               onChange={(event) =>
                 setDraft({ ...draft, description: event.target.value })
               }
-              placeholder="Anything you'll want to see when it fires"
+              placeholder={t("rem.descriptionPlaceholder")}
             />
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Date"
+                label={t("finance.colDate")}
                 type="date"
                 value={draft.date}
                 onChange={(event) =>
@@ -741,7 +777,7 @@ export default function RemindersPage() {
                 }
               />
               <Input
-                label="Time"
+                label={t("rem.timeLabel")}
                 type="time"
                 value={draft.time}
                 onChange={(event) =>
@@ -752,19 +788,19 @@ export default function RemindersPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <Select
-                label="Priority"
+                label={t("rem.colPriority")}
                 value={draft.priority}
                 onChange={(event) =>
                   setDraft({ ...draft, priority: event.target.value as Priority })
                 }
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">{t("priority.low")}</option>
+                <option value="medium">{t("priority.medium")}</option>
+                <option value="high">{t("priority.high")}</option>
               </Select>
 
               <Select
-                label="Repeat"
+                label={t("rem.repeatLabel")}
                 value={draft.repeat_rule}
                 onChange={(event) =>
                   setDraft({
@@ -773,17 +809,16 @@ export default function RemindersPage() {
                   })
                 }
               >
-                <option value="none">Doesn&apos;t repeat</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="none">{t("rem.repeatNone")}</option>
+                <option value="daily">{t("rem.repeatDaily")}</option>
+                <option value="weekly">{t("rem.repeatWeekly")}</option>
+                <option value="monthly">{t("rem.repeatMonthly")}</option>
               </Select>
             </div>
 
             {draft.repeat_rule !== "none" && (
               <Callout tone="info">
-                Repeating reminders are ticked off per day, so completing
-                today&apos;s doesn&apos;t clear tomorrow&apos;s.
+                {t("rem.repeatHelp")}
               </Callout>
             )}
           </div>
@@ -794,11 +829,11 @@ export default function RemindersPage() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
-        title="Delete reminder?"
+        title={t("rem.deleteTitle")}
         message={
           <>
-            <strong className="text-ink">{deleting?.title}</strong> and every
-            repeat of it will be removed.
+            <strong className="text-ink">{deleting?.title}</strong>{" "}
+            {t("rem.deleteMessage")}
           </>
         }
       />

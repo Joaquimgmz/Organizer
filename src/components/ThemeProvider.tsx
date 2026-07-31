@@ -9,6 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+// ThemeToggle is only ever rendered deep inside the tree (settings, shell), so
+// it sits within LanguageProvider even though ThemeProvider wraps it in the
+// root layout. Importing the hook here is a module dependency, not a provider
+// ordering one.
+import { useT } from "./LanguageProvider";
 import { Segmented } from "./ui/Field";
 
 type Theme = "light" | "dark" | "system";
@@ -65,6 +70,7 @@ export function useTheme() {
 /** Three-way light / dark / system switch. */
 export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const { theme, setTheme } = useTheme();
+  const t = useT();
 
   return (
     <Segmented
@@ -74,31 +80,31 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       options={[
         {
           value: "light",
-          title: "Light",
+          title: t("theme.light"),
           label: (
             <span className="flex items-center gap-1.5">
               <Sun className="size-3.5" />
-              {!compact && "Light"}
+              {!compact && t("theme.light")}
             </span>
           ),
         },
         {
           value: "dark",
-          title: "Dark",
+          title: t("theme.dark"),
           label: (
             <span className="flex items-center gap-1.5">
               <Moon className="size-3.5" />
-              {!compact && "Dark"}
+              {!compact && t("theme.dark")}
             </span>
           ),
         },
         {
           value: "system",
-          title: "Match system",
+          title: t("theme.matchSystem"),
           label: (
             <span className="flex items-center gap-1.5">
               <Monitor className="size-3.5" />
-              {!compact && "System"}
+              {!compact && t("theme.system")}
             </span>
           ),
         },

@@ -131,6 +131,27 @@ CREATE TABLE IF NOT EXISTS investments (
 );
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 
+-- Income actually received from an investment: dividends, interest, rent, payouts.
+--
+-- Deliberately a dated history in its own table rather than a total column on
+-- investments, for two reasons:
+--   1. This file only ever runs CREATE TABLE IF NOT EXISTS — there is no
+--      ALTER TABLE step — so a new column would never appear on a database that
+--      already exists, while a new table applies itself on the next boot.
+--   2. Same reasoning as goal_contributions: a history means a mistyped figure
+--      can be deleted and the totals correct themselves, so the numbers stay
+--      trustworthy instead of being one overwritable field.
+CREATE TABLE IF NOT EXISTS investment_income (
+  id            TEXT PRIMARY KEY,
+  investment_id TEXT NOT NULL REFERENCES investments(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount        REAL NOT NULL,
+  date          TEXT NOT NULL,           -- YYYY-MM-DD, when it was received
+  note          TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_investment_income ON investment_income(investment_id, date);
+
 -- ── Workouts ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS workout_sessions (
   id           TEXT PRIMARY KEY,

@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useT } from "@/components/LanguageProvider";
 import { api } from "@/lib/client";
 import { Button } from "@/components/ui/Button";
 import { Callout } from "@/components/ui/Feedback";
@@ -11,6 +12,7 @@ import { Checkbox, Input } from "@/components/ui/Field";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
+  const t = useT();
   const isSignup = mode === "signup";
 
   const [name, setName] = useState("");
@@ -35,7 +37,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       router.push("/dashboard");
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong");
+      setError(
+        caught instanceof Error ? caught.message : t("auth.somethingWrong"),
+      );
       setBusy(false);
     }
   }
@@ -50,33 +54,33 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <Sparkles className="size-[18px]" />
         </span>
         <span className="text-ink text-[15px] font-semibold tracking-tight">
-          Routine Organizer
+          {t("nav.appName")}
         </span>
       </div>
 
       <h1 className="text-ink text-2xl font-semibold tracking-[-0.02em]">
-        {isSignup ? "Create your account" : "Welcome back"}
+        {isSignup ? t("auth.createAccount") : t("auth.welcomeBack")}
       </h1>
       <p className="text-ink-3 mt-1.5 text-sm">
         {isSignup
-          ? "One account keeps your routine, diary, money and training in sync across devices."
-          : "Sign in to pick up where you left off."}
+          ? t("auth.signupLead")
+          : t("auth.loginLead")}
       </p>
 
       <form onSubmit={submit} className="mt-7 space-y-4">
         {isSignup && (
           <Input
-            label="Name"
+            label={t("auth.nameLabel")}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Alex Rivera"
+            placeholder={t("auth.namePlaceholder")}
             autoComplete="name"
             required
           />
         )}
 
         <Input
-          label="Email"
+          label={t("auth.emailLabel")}
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -86,14 +90,16 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         />
 
         <Input
-          label="Password"
+          label={t("auth.passwordLabel")}
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder={isSignup ? "At least 8 characters" : "••••••••"}
+          placeholder={
+            isSignup ? t("auth.passwordPlaceholder") : "••••••••"
+          }
           autoComplete={isSignup ? "new-password" : "current-password"}
           minLength={isSignup ? 8 : undefined}
-          hint={isSignup ? "8 characters minimum" : undefined}
+          hint={isSignup ? t("auth.passwordHint") : undefined}
           required
         />
 
@@ -101,7 +107,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           <Checkbox
             checked={seed}
             onChange={setSeed}
-            label="Start with a month of example data"
+            label={t("auth.seedLabel")}
           />
         )}
 
@@ -114,17 +120,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           loading={busy}
           className="w-full"
         >
-          {isSignup ? "Create account" : "Sign in"}
+          {isSignup ? t("auth.createButton") : t("auth.signIn")}
         </Button>
       </form>
 
       <p className="text-ink-3 mt-6 text-center text-[13px]">
-        {isSignup ? "Already have an account? " : "New here? "}
+        {isSignup ? `${t("auth.haveAccount")} ` : `${t("auth.newHere")} `}
         <Link
           href={isSignup ? "/login" : "/signup"}
           className="text-accent font-medium hover:underline"
         >
-          {isSignup ? "Sign in" : "Create an account"}
+          {isSignup ? t("auth.signIn") : t("auth.createAnAccount")}
         </Link>
       </p>
     </div>

@@ -93,6 +93,29 @@ export type InvestmentStats = {
   nextDate: string;
   /** Total contributed if the plan is kept up. No return rate is assumed. */
   projected: (months: number) => number;
+
+  // ── Income (money out) ─────────────────────────────────────────────────────
+  // Every figure below is derived from payouts the user actually logged.
+  // Nothing here extrapolates a return rate.
+
+  /** Sum of every logged payout. */
+  incomeTotal: number;
+  /** How many payouts have been logged. */
+  incomeCount: number;
+  /**
+   * Income as a percentage of the money actually put in — the realised return
+   * so far, not an annualised or forecast one. `null` when nothing has been
+   * contributed yet, because a percentage of zero is meaningless rather than
+   * infinite.
+   */
+  returnPercent: number | null;
+  /** Income minus contributions: ahead when positive, still down when negative. */
+  net: number;
+  /**
+   * Observed income per month, measured from the first payout to `asOf`.
+   * `null` until something has actually been received.
+   */
+  incomePerMonth: number | null;
 };
 
 export function investmentStats(
@@ -111,6 +134,31 @@ export function investmentStats(
     investment.frequency,
   );
 
+  // ── Income ────────────────────────────────────────────────────────────────
+  // `income` is always supplied by the API, but default to an empty list so a
+  // partially-built object (a test, a future caller) can't throw here.
+  const payouts = investment.income ?? [];
+  const incomeTotal = sum(payouts.map((row) => row.amount));
+
+  // A percentage is only meaningful once money has gone in.
+  const returnPercent = contributed > 0 ? (incomeTotal / contributed) * 100 : null;
+
+  // Observed rate, from the earliest payout to now. Counts the first month
+  // itself (hence + 1), matching how goalStats measures its saving rate.
+  let incomePerMonth: number | null = null;
+  if (payouts.length > 0) {
+    const first = payouts.map((row) => row.date).sort().at(0)!;
+    const from = fromDateKey(first);
+    const to = fromDateKey(asOf);
+    const elapsedMonths = Math.max(
+      1,
+      (to.getFullYear() - from.getFullYear()) * 12 +
+        (to.getMonth() - from.getMonth()) +
+        1,
+    );
+    incomePerMonth = incomeTotal / elapsedMonths;
+  }
+
   return {
     contributed,
     contributionsMade,
@@ -121,6 +169,11 @@ export function investmentStats(
       asOf,
     ),
     projected: (months) => contributed + perMonth * months,
+    incomeTotal,
+    incomeCount: payouts.length,
+    returnPercent,
+    net: incomeTotal - contributed,
+    incomePerMonth,
   };
 }
 

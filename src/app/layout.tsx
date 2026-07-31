@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import { localeOf } from "@/lib/i18n";
+import { getLanguage } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -23,14 +26,22 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Read on the server so both `lang` and every label are correct in the first
+  // HTML, with no post-hydration correction. Reading a cookie here makes the
+  // app dynamically rendered, which it already was — every screen is behind an
+  // auth cookie.
+  const language = await getLanguage();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={localeOf(language)} suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
         <ThemeProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <LanguageProvider initial={language}>
+            <ToastProvider>{children}</ToastProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

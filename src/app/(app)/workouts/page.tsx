@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { BarList } from "@/components/charts/BarList";
 import { ColumnChart, LineChart } from "@/components/charts/Charts";
+import { useLanguage } from "@/components/LanguageProvider";
 import { Page } from "@/components/layout/Shell";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -34,7 +35,6 @@ import {
   formatDate,
   formatShortDate,
   relativeDay,
-  titleCase,
   today,
 } from "@/lib/utils";
 
@@ -70,6 +70,7 @@ function ExerciseRow({
   onDelete: () => void;
 }) {
   const { push } = useToast();
+  const { t } = useLanguage();
   const [draft, setDraft] = useState(exercise);
 
   useEffect(() => setDraft(exercise), [exercise]);
@@ -79,7 +80,7 @@ function ExerciseRow({
       await api.patch(`/api/workouts/exercises/${exercise.id}`, updates);
       onChanged();
     } catch {
-      push("Couldn't save that change.", "error");
+      push(t("wk.couldntSaveChange"), "error");
       setDraft(exercise);
     }
   }
@@ -160,7 +161,7 @@ function ExerciseRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Remove exercise"
+            aria-label={t("wk.removeExerciseAria")}
             onClick={onDelete}
           >
             <Trash2 className="size-3.5" />
@@ -173,6 +174,7 @@ function ExerciseRow({
 
 export default function WorkoutsPage() {
   const { push } = useToast();
+  const { t, tv, locale } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"session" | "progress">("session");
   const [creating, setCreating] = useState(false);
@@ -228,7 +230,7 @@ export default function WorkoutsPage() {
     () =>
       (progressQuery.data?.byGroup ?? []).map((row, index) => ({
         ...row,
-        label: titleCase(row.muscle_group),
+        label: tv("muscle", row.muscle_group),
         color: SERIES[index % SERIES.length],
       })),
     [progressQuery.data],
@@ -266,7 +268,7 @@ export default function WorkoutsPage() {
       if (newSession.template_id) payload.template_id = newSession.template_id;
       if (newSession.name.trim()) payload.name = newSession.name.trim();
       if (!newSession.template_id && !newSession.name.trim()) {
-        push("Name the workout or pick a template.", "error");
+        push(t("wk.needName"), "error");
         setSaving(false);
         return;
       }
@@ -275,14 +277,17 @@ export default function WorkoutsPage() {
         "/api/workouts/sessions",
         payload,
       );
-      push("Workout created.");
+      push(t("wk.created"));
       setCreating(false);
       setNewSession({ name: "", muscle_group: "push", date: today(), template_id: "" });
       await Promise.all([sessionsQuery.reload(), progressQuery.reload()]);
       setSelectedId(result.id);
       setTab("session");
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't create.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("wk.couldntCreate"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -291,7 +296,7 @@ export default function WorkoutsPage() {
   async function addExercise() {
     if (!selected || !newExercise) return;
     if (!newExercise.name.trim()) {
-      push("Name the exercise.", "error");
+      push(t("wk.needExerciseName"), "error");
       return;
     }
 
@@ -307,7 +312,10 @@ export default function WorkoutsPage() {
       setNewExercise(null);
       await Promise.all([sessionsQuery.reload(), progressQuery.reload()]);
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't add.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("wk.couldntAdd"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -318,18 +326,18 @@ export default function WorkoutsPage() {
       await api.delete(`/api/workouts/exercises/${exercise.id}`);
       await Promise.all([sessionsQuery.reload(), progressQuery.reload()]);
     } catch {
-      push("Couldn't remove that exercise.", "error");
+      push(t("wk.couldntRemoveExercise"), "error");
     }
   }
 
   async function removeSession(session: WorkoutSession) {
     try {
       await api.delete(`/api/workouts/sessions/${session.id}`);
-      push("Workout deleted.");
+      push(t("wk.deleted"));
       setSelectedId(null);
       await Promise.all([sessionsQuery.reload(), progressQuery.reload()]);
     } catch {
-      push("Couldn't delete that workout.", "error");
+      push(t("wk.couldntDelete"), "error");
     }
   }
 
@@ -346,11 +354,11 @@ export default function WorkoutsPage() {
           rest_seconds: exercise.rest_seconds,
         })),
       });
-      push(`Saved "${session.name}" as a template.`);
+      push(t("wk.savedAsTemplate", { name: session.name }));
       await templatesQuery.reload();
     } catch (caught) {
       push(
-        caught instanceof Error ? caught.message : "Couldn't save template.",
+        caught instanceof Error ? caught.message : t("wk.couldntSaveTemplate"),
         "error",
       );
     }
@@ -367,11 +375,16 @@ export default function WorkoutsPage() {
 
   return (
     <Page
-      title="Workouts"
+      title={t("wk.title")}
       subtitle={
         progressQuery.data
-          ? `${progressQuery.data.totals.sessions} sessions in the last 90 days - ${Math.round(progressQuery.data.totals.volume).toLocaleString()} kg moved`
-          : "Plan your training and track what you lift"
+          ? t("wk.subtitle", {
+              sessions: progressQuery.data.totals.sessions,
+              volume: Math.round(
+                progressQuery.data.totals.volume,
+              ).toLocaleString(locale),
+            })
+          : t("wk.subtitleEmpty")
       }
       actions={
         <>
@@ -385,7 +398,7 @@ export default function WorkoutsPage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Dumbbell className="size-3.5" />
-                    Session
+                    {t("wk.tabSession")}
                   </span>
                 ),
               },
@@ -394,7 +407,7 @@ export default function WorkoutsPage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <BarChart3 className="size-3.5" />
-                    Progress
+                    {t("wk.tabProgress")}
                   </span>
                 ),
               },
@@ -402,7 +415,7 @@ export default function WorkoutsPage() {
           />
           <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
             <Plus className="size-4" />
-            New workout
+            {t("wk.newWorkout")}
           </Button>
         </>
       }
@@ -438,7 +451,9 @@ export default function WorkoutsPage() {
                   {template.name}
                 </span>
                 <span className="text-ink-3 block text-[11.5px]">
-                  {template.exercises.length} exercises
+                  {t("wk.exercisesCount", {
+                    count: template.exercises.length,
+                  })}
                 </span>
               </span>
             </button>
@@ -458,8 +473,8 @@ export default function WorkoutsPage() {
                 <CardBody>
                   <EmptyState
                     icon={<Dumbbell className="size-5" />}
-                    title="No workouts yet"
-                    message="Create one from scratch or start from a template."
+                    title={t("wk.emptyTitle")}
+                    message={t("wk.emptyMessage")}
                     action={
                       <Button
                         variant="primary"
@@ -467,7 +482,7 @@ export default function WorkoutsPage() {
                         onClick={() => setCreating(true)}
                       >
                         <Plus className="size-4" />
-                        New workout
+                        {t("wk.newWorkout")}
                       </Button>
                     }
                   />
@@ -478,22 +493,25 @@ export default function WorkoutsPage() {
                 <CardHeader
                   title={selected.name}
                   icon={<Dumbbell className="size-4" />}
-                  subtitle={`${formatDate(selected.date)} - ${titleCase(selected.muscle_group)}`}
+                  subtitle={t("wk.sessionSubtitle", {
+                    date: formatDate(selected.date, undefined, locale),
+                    group: tv("muscle", selected.muscle_group),
+                  })}
                   action={
                     <>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => saveAsTemplate(selected)}
-                        title="Save this workout as a reusable template"
+                        title={t("wk.saveAsTemplate")}
                       >
                         <LayoutTemplate className="size-3.5" />
-                        Save as template
+                        {t("wk.saveAsTemplateBtn")}
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label="Delete workout"
+                        aria-label={t("wk.deleteWorkoutAria")}
                         onClick={() => setDeletingSession(selected)}
                       >
                         <Trash2 className="size-4" />
@@ -509,16 +527,23 @@ export default function WorkoutsPage() {
                           value={doneCount}
                           max={selected.exercises.length}
                           color="var(--series-2)"
-                          label="Exercises completed"
+                          label={t("dash.exercisesCompleted")}
                         />
                         <p className="text-ink-3 mt-1.5 text-[12px]">
-                          {doneCount} of {selected.exercises.length} done
+                          {t("wk.doneOf", {
+                            done: doneCount,
+                            total: selected.exercises.length,
+                          })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-ink-3 text-[11.5px]">Session volume</p>
+                        <p className="text-ink-3 text-[11.5px]">
+                          {t("wk.sessionVolume")}
+                        </p>
                         <p className="text-ink text-[15px] font-semibold tabular-nums">
-                          {Math.round(totalVolume).toLocaleString()} kg
+                          {t("wk.kg", {
+                            value: Math.round(totalVolume).toLocaleString(locale),
+                          })}
                         </p>
                       </div>
                     </div>
@@ -527,8 +552,8 @@ export default function WorkoutsPage() {
                   {selected.exercises.length === 0 ? (
                     <EmptyState
                       icon={<Dumbbell className="size-5" />}
-                      title="No exercises yet"
-                      message="Add the first movement and its sets, reps and weight."
+                      title={t("wk.noExercisesTitle")}
+                      message={t("wk.noExercisesMessage")}
                       action={
                         <Button
                           variant="primary"
@@ -544,7 +569,7 @@ export default function WorkoutsPage() {
                           }
                         >
                           <Plus className="size-4" />
-                          Add exercise
+                          {t("wk.addExercise")}
                         </Button>
                       }
                     />
@@ -555,16 +580,21 @@ export default function WorkoutsPage() {
                           <tr className="border-line border-b">
                             <th className="w-8 py-2" />
                             <th className="text-ink-3 py-2 pr-2 text-[11.5px] font-medium">
-                              Exercise
+                              {t("wk.colExercise")}
                             </th>
-                            {["Sets", "Reps", "Weight", "Rest"].map((heading) => (
+                            {/* The unit is baked into each label rather than
+                                appended by comparing against English text. */}
+                            {[
+                              { id: "sets", label: t("wk.colSets") },
+                              { id: "reps", label: t("wk.colReps") },
+                              { id: "weight", label: t("wk.colWeight") },
+                              { id: "rest", label: t("wk.colRest") },
+                            ].map((heading) => (
                               <th
-                                key={heading}
+                                key={heading.id}
                                 className="text-ink-3 py-2 pr-2 text-right text-[11.5px] font-medium"
                               >
-                                {heading}
-                                {heading === "Weight" && " (kg)"}
-                                {heading === "Rest" && " (s)"}
+                                {heading.label}
                               </th>
                             ))}
                             <th className="py-2" />
@@ -603,7 +633,7 @@ export default function WorkoutsPage() {
                       }
                     >
                       <Plus className="size-3.5" />
-                      Add exercise
+                      {t("wk.addExercise")}
                     </Button>
                   )}
                 </CardBody>
@@ -613,27 +643,29 @@ export default function WorkoutsPage() {
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <StatTile
-                  label="Sessions"
+                  label={t("wk.statSessions")}
                   value={progressQuery.data?.totals.sessions ?? 0}
-                  hint="Last 90 days"
+                  hint={t("wk.last90")}
                   icon={<Dumbbell className="size-4" />}
                   accent="var(--series-2)"
                 />
                 <StatTile
-                  label="Total volume"
-                  value={`${Math.round(
-                    progressQuery.data?.totals.volume ?? 0,
-                  ).toLocaleString()} kg`}
-                  hint="Sets x reps x weight"
+                  label={t("wk.totalVolume")}
+                  value={t("wk.kg", {
+                    value: Math.round(
+                      progressQuery.data?.totals.volume ?? 0,
+                    ).toLocaleString(locale),
+                  })}
+                  hint={t("wk.volumeFormula")}
                   icon={<TrendingUp className="size-4" />}
                   accent="var(--series-1)"
                 />
                 <StatTile
-                  label="Per week"
+                  label={t("wk.perWeek")}
                   value={((progressQuery.data?.totals.sessions ?? 0) / 13).toFixed(
                     1,
                   )}
-                  hint="Average sessions"
+                  hint={t("wk.averageSessions")}
                   icon={<Timer className="size-4" />}
                   accent="var(--series-3)"
                 />
@@ -641,22 +673,24 @@ export default function WorkoutsPage() {
 
               <Card>
                 <CardHeader
-                  title="Volume per session"
-                  subtitle="Total weight moved each time you trained"
+                  title={t("wk.volumePerSession")}
+                  subtitle={t("wk.volumePerSessionSub")}
                 />
                 <CardBody>
                   {volumeSeries.length === 0 ? (
                     <p className="text-ink-3 py-6 text-center text-[13px]">
-                      Log a workout with weights to see this chart.
+                      {t("wk.volumeChartEmpty")}
                     </p>
                   ) : (
                     <ColumnChart
                       data={volumeSeries}
                       xKey="label"
                       valueKey="volume"
-                      seriesLabel="Volume"
+                      seriesLabel={t("wk.volumeSeries")}
                       height={224}
-                      formatValue={(value) => `${value.toLocaleString()} kg`}
+                      formatValue={(value) =>
+                        t("wk.kg", { value: value.toLocaleString(locale) })
+                      }
                       formatTick={(value) =>
                         value >= 1000 ? `${Math.round(value / 1000)}k` : `${value}`
                       }
@@ -668,12 +702,14 @@ export default function WorkoutsPage() {
               <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
                   <CardHeader
-                    title="Sessions by muscle group"
-                    subtitle="Where the work is going"
+                    title={t("wk.byMuscleGroup")}
+                    subtitle={t("wk.byMuscleGroupSub")}
                   />
                   <CardBody>
                     {groupSeries.length === 0 ? (
-                      <p className="text-ink-3 text-[13px]">Nothing logged yet.</p>
+                      <p className="text-ink-3 text-[13px]">
+                        {t("wk.nothingLogged")}
+                      </p>
                     ) : (
                       <BarList
                         rows={groupSeries.map((row) => ({
@@ -683,7 +719,9 @@ export default function WorkoutsPage() {
                           color: row.color,
                         }))}
                         format={(value) =>
-                          `${value} ${value === 1 ? "session" : "sessions"}`
+                          value === 1
+                            ? t("wk.oneSession")
+                            : t("wk.sessionsCount", { count: value })
                         }
                       />
                     )}
@@ -692,18 +730,21 @@ export default function WorkoutsPage() {
 
                 <Card>
                   <CardHeader
-                    title={trend ? `${trend.name} progression` : "Progression"}
+                    title={
+                      trend
+                        ? t("wk.progressionOf", { name: trend.name })
+                        : t("wk.progression")
+                    }
                     subtitle={
                       trend
-                        ? "Heaviest set each session"
-                        : "Repeat an exercise to see its trend"
+                        ? t("wk.heaviestSetEach")
+                        : t("wk.repeatToSeeTrend")
                     }
                   />
                   <CardBody>
                     {!trend ? (
                       <p className="text-ink-3 text-[13px]">
-                        Log the same exercise on two or more days and its weight
-                        trend appears here.
+                        {t("wk.trendEmpty")}
                       </p>
                     ) : (
                       <LineChart
@@ -714,11 +755,11 @@ export default function WorkoutsPage() {
                         series={[
                           {
                             key: "weight",
-                            label: "Heaviest set",
+                            label: t("wk.heaviestSet"),
                             color: "var(--series-2)",
                           },
                         ]}
-                        formatValue={(value) => `${value} kg`}
+                        formatValue={(value) => t("wk.kg", { value })}
                         formatTick={(value) => `${value}`}
                       />
                     )}
@@ -733,13 +774,15 @@ export default function WorkoutsPage() {
         <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader
-              title="History"
+              title={t("wk.history")}
               icon={<History className="size-4" />}
-              subtitle={`${sessions.length} recent sessions`}
+              subtitle={t("wk.recentSessions", { count: sessions.length })}
             />
             <CardBody>
               {sessions.length === 0 ? (
-                <p className="text-ink-3 text-[13px]">No sessions logged yet.</p>
+                <p className="text-ink-3 text-[13px]">
+                  {t("wk.noSessionsLogged")}
+                </p>
               ) : (
                 <ul className="max-h-[26rem] space-y-1 overflow-y-auto">
                   {sessions.map((session) => {
@@ -772,13 +815,20 @@ export default function WorkoutsPage() {
                               {session.name}
                             </span>
                             <span className="text-ink-3 shrink-0 text-[11.5px]">
-                              {relativeDay(session.date)}
+                              {relativeDay(session.date, locale, {
+                                today: t("date.today"),
+                                tomorrow: t("date.tomorrow"),
+                                yesterday: t("date.yesterday"),
+                              })}
                             </span>
                           </div>
                           <div className="mt-0.5 flex items-center gap-2">
-                            <Badge>{session.muscle_group}</Badge>
+                            <Badge>{tv("muscle", session.muscle_group)}</Badge>
                             <span className="text-ink-3 text-[11.5px] tabular-nums">
-                              {done}/{session.exercises.length} done
+                              {t("wk.doneOf", {
+                                done,
+                                total: session.exercises.length,
+                              })}
                             </span>
                           </div>
                         </button>
@@ -796,23 +846,23 @@ export default function WorkoutsPage() {
       <Modal
         open={creating}
         onClose={() => setCreating(false)}
-        title="New workout"
-        description="Start from a template or build it from scratch."
+        title={t("wk.newWorkout")}
+        description={t("wk.newWorkoutDesc")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" onClick={createSession} loading={saving}>
-              Create workout
+              {t("wk.createWorkout")}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
           <Select
-            label="Template"
-            hint="Optional"
+            label={t("wk.templateLabel")}
+            hint={t("common.optional")}
             value={newSession.template_id}
             onChange={(event) => {
               const template = templates.find(
@@ -828,26 +878,29 @@ export default function WorkoutsPage() {
               });
             }}
           >
-            <option value="">Start from scratch</option>
+            <option value="">{t("wk.startFromScratch")}</option>
             {templates.map((template) => (
               <option key={template.id} value={template.id}>
-                {template.name} ({template.exercises.length} exercises)
+                {t("wk.templateOption", {
+                  name: template.name,
+                  count: template.exercises.length,
+                })}
               </option>
             ))}
           </Select>
 
           <Input
-            label="Workout name"
+            label={t("wk.workoutName")}
             value={newSession.name}
             onChange={(event) =>
               setNewSession({ ...newSession, name: event.target.value })
             }
-            placeholder="Push day"
+            placeholder={t("wk.workoutNamePlaceholder")}
           />
 
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label="Muscle group"
+              label={t("wk.muscleGroup")}
               value={newSession.muscle_group}
               onChange={(event) =>
                 setNewSession({ ...newSession, muscle_group: event.target.value })
@@ -855,12 +908,12 @@ export default function WorkoutsPage() {
             >
               {MUSCLE_GROUPS.map((group) => (
                 <option key={group} value={group}>
-                  {titleCase(group)}
+                  {tv("muscle", group)}
                 </option>
               ))}
             </Select>
             <Input
-              label="Date"
+              label={t("finance.colDate")}
               type="date"
               value={newSession.date}
               onChange={(event) =>
@@ -875,7 +928,7 @@ export default function WorkoutsPage() {
       <Modal
         open={newExercise !== null}
         onClose={() => setNewExercise(null)}
-        title="Add exercise"
+        title={t("wk.addExercise")}
         size="sm"
         footer={
           <>
@@ -883,7 +936,7 @@ export default function WorkoutsPage() {
               Cancel
             </Button>
             <Button variant="primary" onClick={addExercise} loading={saving}>
-              Add exercise
+              {t("wk.addExercise")}
             </Button>
           </>
         }
@@ -891,17 +944,17 @@ export default function WorkoutsPage() {
         {newExercise && (
           <div className="space-y-4">
             <Input
-              label="Exercise"
+              label={t("wk.colExercise")}
               value={newExercise.name}
               onChange={(event) =>
                 setNewExercise({ ...newExercise, name: event.target.value })
               }
-              placeholder="Bench press"
+              placeholder={t("wk.exerciseNamePlaceholder")}
               autoFocus
             />
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Sets"
+                label={t("wk.colSets")}
                 type="number"
                 min={1}
                 value={newExercise.sets}
@@ -910,7 +963,7 @@ export default function WorkoutsPage() {
                 }
               />
               <Input
-                label="Reps"
+                label={t("wk.colReps")}
                 type="number"
                 min={1}
                 value={newExercise.reps}
@@ -919,7 +972,7 @@ export default function WorkoutsPage() {
                 }
               />
               <Input
-                label="Weight (kg)"
+                label={t("wk.colWeight")}
                 type="number"
                 min={0}
                 step="0.5"
@@ -929,7 +982,7 @@ export default function WorkoutsPage() {
                 }
               />
               <Input
-                label="Rest (seconds)"
+                label={t("wk.restSeconds")}
                 type="number"
                 min={0}
                 step={15}
@@ -950,11 +1003,11 @@ export default function WorkoutsPage() {
         open={deletingSession !== null}
         onClose={() => setDeletingSession(null)}
         onConfirm={() => deletingSession && removeSession(deletingSession)}
-        title="Delete workout?"
+        title={t("wk.deleteTitle")}
         message={
           <>
-            <strong className="text-ink">{deletingSession?.name}</strong> and all its
-            exercises will be removed from your history.
+            <strong className="text-ink">{deletingSession?.name}</strong>{" "}
+            {t("wk.deleteMessage")}
           </>
         }
       />

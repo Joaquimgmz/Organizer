@@ -64,6 +64,12 @@ export function daysInMonth(key: string): number {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 }
 
+/**
+ * The `locale` parameters below are optional throughout, and omitting one keeps
+ * the previous behaviour exactly: `undefined` tells Intl to use the browser's
+ * locale. Components that know the selected interface language pass it in so
+ * dates and money read in the same language as the labels around them.
+ */
 export function formatDate(
   key: string,
   opts: Intl.DateTimeFormatOptions = {
@@ -71,27 +77,44 @@ export function formatDate(
     month: "long",
     day: "numeric",
   },
+  locale?: string,
 ) {
-  return fromDateKey(key).toLocaleDateString(undefined, opts);
+  return fromDateKey(key).toLocaleDateString(locale, opts);
 }
 
-export function formatShortDate(key: string) {
-  return fromDateKey(key).toLocaleDateString(undefined, {
+export function formatShortDate(key: string, locale?: string) {
+  return fromDateKey(key).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
   });
 }
 
-export function relativeDay(key: string): string {
+/**
+ * "Today" / "Tomorrow" / "Yesterday", or a short date.
+ *
+ * The three relative words are passed in rather than translated here, because
+ * this module deliberately has no dependency on the i18n dictionaries — it's
+ * imported by server code too. Callers without `labels` get English, which is
+ * what every existing call site already produced.
+ */
+export function relativeDay(
+  key: string,
+  locale?: string,
+  labels?: { today: string; tomorrow: string; yesterday: string },
+): string {
   const t = today();
-  if (key === t) return "Today";
-  if (key === addDays(t, 1)) return "Tomorrow";
-  if (key === addDays(t, -1)) return "Yesterday";
-  return formatDate(key, { weekday: "short", month: "short", day: "numeric" });
+  if (key === t) return labels?.today ?? "Today";
+  if (key === addDays(t, 1)) return labels?.tomorrow ?? "Tomorrow";
+  if (key === addDays(t, -1)) return labels?.yesterday ?? "Yesterday";
+  return formatDate(
+    key,
+    { weekday: "short", month: "short", day: "numeric" },
+    locale,
+  );
 }
 
-export function monthLabel(key: string) {
-  return fromDateKey(key).toLocaleDateString(undefined, {
+export function monthLabel(key: string, locale?: string) {
+  return fromDateKey(key).toLocaleDateString(locale, {
     month: "long",
     year: "numeric",
   });
@@ -121,9 +144,9 @@ export function durationLabel(start: string, end: string): string {
 
 // ── Money ────────────────────────────────────────────────────────────────────
 
-export function formatMoney(amount: number, currency = "USD") {
+export function formatMoney(amount: number, currency = "USD", locale?: string) {
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
@@ -133,8 +156,8 @@ export function formatMoney(amount: number, currency = "USD") {
   }
 }
 
-export function formatCompact(n: number) {
-  return new Intl.NumberFormat(undefined, {
+export function formatCompact(n: number, locale?: string) {
+  return new Intl.NumberFormat(locale, {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(n);

@@ -27,6 +27,7 @@ import { ConfirmDialog, Modal } from "@/components/ui/Modal";
 import { StackedBar } from "@/components/ui/Progress";
 import { useToast } from "@/components/ui/Toast";
 import { api, useApi } from "@/lib/client";
+import { useLanguage } from "@/components/LanguageProvider";
 import { ACTIVITY_CATEGORIES, type Activity, type ActivityCategory } from "@/lib/types";
 import {
   addDays,
@@ -69,6 +70,7 @@ function Timeline({
   activities: Activity[];
   onEdit: (activity: Activity) => void;
 }) {
+  const { t } = useLanguage();
   const hours = Array.from(
     { length: DAY_END - DAY_START + 1 },
     (_, index) => DAY_START + index,
@@ -115,7 +117,9 @@ function Timeline({
             style={{ top: (hour - DAY_START) * HOUR_HEIGHT }}
           >
             <span className="text-ink-3 w-14 shrink-0 -translate-y-1.5 pr-2 text-right text-[11px] tabular-nums">
-              {hour === 24 ? "12 AM" : formatTime(`${String(hour).padStart(2, "0")}:00`)}
+              {hour === 24
+                ? t("routine.midnight")
+                : formatTime(`${String(hour).padStart(2, "0")}:00`)}
             </span>
             <span className="border-line mt-0 flex-1 border-t" />
           </div>
@@ -161,7 +165,11 @@ function Timeline({
                   borderLeft: `3px solid ${color}`,
                   opacity: activity.completed ? 0.6 : 1,
                 }}
-                title={`${activity.title} - ${formatTime(activity.start_time)} to ${formatTime(activity.end_time)}`}
+                title={t("routine.blockTooltip", {
+                  title: activity.title,
+                  start: formatTime(activity.start_time),
+                  end: formatTime(activity.end_time),
+                })}
               >
                 <span
                   className={
@@ -188,6 +196,7 @@ function Timeline({
 
 export default function RoutinePage() {
   const { push } = useToast();
+  const { t, tv, locale } = useLanguage();
   const [date, setDate] = useState(today());
   const [view, setView] = useState<"timeline" | "list">("timeline");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -214,12 +223,15 @@ export default function RoutinePage() {
     }
     return [...totals.entries()]
       .map(([category, minutes]) => ({
-        label: category,
+        // `category` stays the stable key; `label` is what the user reads.
+        category,
+        label: tv("category", category),
         value: minutes,
         color: ACTIVITY_COLORS[category],
       }))
       .sort((a, b) => b.value - a.value);
-  }, [activities]);
+    // tv depends on the selected language, so it belongs in the dep list.
+  }, [activities, tv]);
 
   const plannedMinutes = composition.reduce((acc, row) => acc + row.value, 0);
   const doneCount = activities.filter((activity) => activity.completed).length;
@@ -227,11 +239,11 @@ export default function RoutinePage() {
   async function save() {
     if (!draft) return;
     if (!draft.title.trim()) {
-      push("Give the activity a name.", "error");
+      push(t("routine.needName"), "error");
       return;
     }
     if (draft.end_time <= draft.start_time) {
-      push("The end time has to be after the start time.", "error");
+      push(t("routine.endAfterStart"), "error");
       return;
     }
 
@@ -239,15 +251,18 @@ export default function RoutinePage() {
     try {
       if (draft.id) {
         await api.patch(`/api/activities/${draft.id}`, { ...draft, date });
-        push("Activity updated.");
+        push(t("routine.updated"));
       } else {
         await api.post("/api/activities", { ...draft, date });
-        push("Activity added.");
+        push(t("routine.added"));
       }
       setDraft(null);
       await reload();
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't save.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("common.couldntSave"),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -260,24 +275,24 @@ export default function RoutinePage() {
       });
       await reload();
     } catch {
-      push("Couldn't update that activity.", "error");
+      push(t("routine.couldntUpdate"), "error");
     }
   }
 
   async function remove(activity: Activity) {
     try {
       await api.delete(`/api/activities/${activity.id}`);
-      push("Activity deleted.");
+      push(t("routine.deleted"));
       await reload();
     } catch {
-      push("Couldn't delete that activity.", "error");
+      push(t("routine.couldntDelete"), "error");
     }
   }
 
   return (
     <Page
-      title="Daily routine"
-      subtitle={formatDate(date)}
+      title={t("routine.title")}
+      subtitle={formatDate(date, undefined, locale)}
       actions={
         <>
           <div className="border-line bg-surface flex items-center rounded-lg border">
@@ -285,7 +300,7 @@ export default function RoutinePage() {
               variant="ghost"
               size="icon-sm"
               onClick={() => setDate(addDays(date, -1))}
-              aria-label="Previous day"
+              aria-label={t("routine.prevDay")}
             >
               <ChevronLeft className="size-4" />
             </Button>
@@ -294,13 +309,13 @@ export default function RoutinePage() {
               value={date}
               onChange={(event) => setDate(event.target.value || today())}
               className="text-ink w-[8.5rem] bg-transparent px-1 text-[13px] outline-none"
-              aria-label="Date"
+              aria-label={t("routine.dateAria")}
             />
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => setDate(addDays(date, 1))}
-              aria-label="Next day"
+              aria-label={t("routine.nextDay")}
             >
               <ChevronRight className="size-4" />
             </Button>
@@ -308,7 +323,7 @@ export default function RoutinePage() {
 
           {date !== today() && (
             <Button variant="ghost" size="sm" onClick={() => setDate(today())}>
-              Today
+              {t("common.today")}
             </Button>
           )}
 
@@ -322,7 +337,7 @@ export default function RoutinePage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <Clock className="size-3.5" />
-                    Timeline
+                    {t("routine.viewTimeline")}
                   </span>
                 ),
               },
@@ -331,7 +346,7 @@ export default function RoutinePage() {
                 label: (
                   <span className="flex items-center gap-1.5">
                     <ListChecks className="size-3.5" />
-                    List
+                    {t("routine.viewList")}
                   </span>
                 ),
               },
@@ -344,7 +359,7 @@ export default function RoutinePage() {
             onClick={() => setDraft({ ...EMPTY })}
           >
             <Plus className="size-4" />
-            Add activity
+            {t("routine.addActivity")}
           </Button>
         </>
       }
@@ -360,10 +375,17 @@ export default function RoutinePage() {
         <div className="min-w-0 space-y-4">
           <Card>
             <CardHeader
-              title={view === "timeline" ? "Your day" : "Activities"}
+              title={
+                view === "timeline" ? t("routine.yourDay") : t("routine.activities")
+              }
               subtitle={
                 activities.length > 0
-                  ? `${activities.length} activities - ${doneCount} done - ${Math.floor(plannedMinutes / 60)}h ${plannedMinutes % 60}m planned`
+                  ? t("routine.summary", {
+                      count: activities.length,
+                      done: doneCount,
+                      hours: Math.floor(plannedMinutes / 60),
+                      minutes: plannedMinutes % 60,
+                    })
                   : undefined
               }
             />
@@ -373,8 +395,8 @@ export default function RoutinePage() {
               ) : activities.length === 0 ? (
                 <EmptyState
                   icon={<CalendarDays className="size-5" />}
-                  title="Nothing scheduled"
-                  message="Add what you're doing today and it'll show up on the timeline."
+                  title={t("routine.emptyTitle")}
+                  message={t("routine.emptyMessage")}
                   action={
                     <Button
                       variant="primary"
@@ -382,7 +404,7 @@ export default function RoutinePage() {
                       onClick={() => setDraft({ ...EMPTY })}
                     >
                       <Plus className="size-4" />
-                      Add activity
+                      {t("routine.addActivity")}
                     </Button>
                   }
                 />
@@ -432,9 +454,14 @@ export default function RoutinePage() {
                           {activity.title}
                         </p>
                         <p className="text-ink-3 mt-0.5 text-[12px]">
-                          {formatTime(activity.start_time)} -{" "}
-                          {formatTime(activity.end_time)} (
-                          {durationLabel(activity.start_time, activity.end_time)})
+                          {t("routine.timeRange", {
+                            start: formatTime(activity.start_time),
+                            end: formatTime(activity.end_time),
+                            duration: durationLabel(
+                              activity.start_time,
+                              activity.end_time,
+                            ),
+                          })}
                         </p>
                         {activity.notes && (
                           <p className="text-ink-3 mt-1 text-[12.5px] leading-relaxed">
@@ -451,7 +478,7 @@ export default function RoutinePage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Edit"
+                          aria-label={t("common.edit")}
                           onClick={() =>
                             setDraft({
                               id: activity.id,
@@ -468,7 +495,7 @@ export default function RoutinePage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Delete"
+                          aria-label={t("common.delete")}
                           onClick={() => setDeleting(activity)}
                         >
                           <Trash2 className="size-3.5" />
@@ -485,17 +512,20 @@ export default function RoutinePage() {
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title="How the day splits"
+              title={t("routine.howDaySplits")}
               subtitle={
                 plannedMinutes > 0
-                  ? `${Math.floor(plannedMinutes / 60)}h ${plannedMinutes % 60}m accounted for`
-                  : "Nothing planned yet"
+                  ? t("routine.accountedFor", {
+                      hours: Math.floor(plannedMinutes / 60),
+                      minutes: plannedMinutes % 60,
+                    })
+                  : t("routine.nothingPlannedYet")
               }
             />
             <CardBody>
               {composition.length === 0 ? (
                 <p className="text-ink-3 text-[13px]">
-                  Add activities to see where your time goes.
+                  {t("routine.addToSeeSplit")}
                 </p>
               ) : (
                 <>
@@ -507,7 +537,7 @@ export default function RoutinePage() {
                   <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
                     {composition.map((row) => (
                       <LegendKey
-                        key={row.label}
+                        key={row.category}
                         color={row.color}
                         label={row.label}
                         value={`${Math.floor(row.value / 60)}h ${row.value % 60}m`}
@@ -525,8 +555,10 @@ export default function RoutinePage() {
       <Modal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit activity" : "Add activity"}
-        description={formatDate(date)}
+        title={
+          draft?.id ? t("routine.editActivity") : t("routine.addActivity")
+        }
+        description={formatDate(date, undefined, locale)}
         footer={
           <>
             {draft?.id && (
@@ -547,7 +579,7 @@ export default function RoutinePage() {
               Cancel
             </Button>
             <Button variant="primary" onClick={save} loading={saving}>
-              {draft?.id ? "Save changes" : "Add activity"}
+              {draft?.id ? t("common.saveChanges") : t("routine.addActivity")}
             </Button>
           </>
         }
@@ -555,18 +587,18 @@ export default function RoutinePage() {
         {draft && (
           <div className="space-y-4">
             <Input
-              label="What are you doing?"
+              label={t("routine.titleLabel")}
               value={draft.title}
               onChange={(event) =>
                 setDraft({ ...draft, title: event.target.value })
               }
-              placeholder="Deep work block"
+              placeholder={t("routine.titlePlaceholder")}
               autoFocus
             />
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Start"
+                label={t("routine.startLabel")}
                 type="time"
                 value={draft.start_time}
                 onChange={(event) =>
@@ -574,7 +606,7 @@ export default function RoutinePage() {
                 }
               />
               <Input
-                label="End"
+                label={t("routine.endLabel")}
                 type="time"
                 value={draft.end_time}
                 onChange={(event) =>
@@ -584,7 +616,7 @@ export default function RoutinePage() {
             </div>
 
             <Select
-              label="Category"
+              label={t("finance.colCategory")}
               value={draft.category}
               onChange={(event) =>
                 setDraft({
@@ -595,20 +627,20 @@ export default function RoutinePage() {
             >
               {ACTIVITY_CATEGORIES.map((category) => (
                 <option key={category} value={category}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                  {tv("category", category)}
                 </option>
               ))}
             </Select>
 
             <Textarea
-              label="Notes"
-              hint="Optional"
+              label={t("investments.notesLabel")}
+              hint={t("common.optional")}
               rows={3}
               value={draft.notes}
               onChange={(event) =>
                 setDraft({ ...draft, notes: event.target.value })
               }
-              placeholder="Anything worth remembering about this block"
+              placeholder={t("routine.notesPlaceholder")}
             />
           </div>
         )}
@@ -618,11 +650,13 @@ export default function RoutinePage() {
         open={deleting !== null}
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
-        title="Delete activity?"
+        title={t("routine.deleteTitle")}
         message={
           <>
             <strong className="text-ink">{deleting?.title}</strong> will be removed
-            from {formatDate(date)}. This can&apos;t be undone.
+            {t("routine.deleteMessage", {
+              date: formatDate(date, undefined, locale),
+            })}
           </>
         }
       />

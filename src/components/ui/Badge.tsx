@@ -1,7 +1,12 @@
+// Needed because the category and priority badges read the selected language.
+// Every consumer (dashboard, finance, reminders) is already a client component.
+"use client";
+
 import { AlertTriangle, ArrowDown, Minus } from "lucide-react";
 import type { ReactNode } from "react";
+import { useLanguage } from "@/components/LanguageProvider";
 import type { ActivityCategory, ExpenseCategory, Priority } from "@/lib/types";
-import { cn, titleCase } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export function Badge({
   children,
@@ -59,11 +64,13 @@ export const EXPENSE_COLORS: Record<ExpenseCategory, string> = {
 };
 
 export function CategoryBadge({ category }: { category: ActivityCategory }) {
-  return <Badge color={ACTIVITY_COLORS[category]}>{titleCase(category)}</Badge>;
+  const { tv } = useLanguage();
+  return <Badge color={ACTIVITY_COLORS[category]}>{tv("category", category)}</Badge>;
 }
 
 export function ExpenseCategoryBadge({ category }: { category: ExpenseCategory }) {
-  return <Badge color={EXPENSE_COLORS[category]}>{titleCase(category)}</Badge>;
+  const { tv } = useLanguage();
+  return <Badge color={EXPENSE_COLORS[category]}>{tv("expense", category)}</Badge>;
 }
 
 /**
@@ -71,10 +78,15 @@ export function ExpenseCategoryBadge({ category }: { category: ExpenseCategory }
  * than relying on hue alone.
  */
 export function PriorityBadge({ priority }: { priority: Priority }) {
+  const { t } = useLanguage();
   const config = {
-    high: { color: "var(--critical)", Icon: AlertTriangle, label: "High" },
-    medium: { color: "var(--warning)", Icon: Minus, label: "Medium" },
-    low: { color: "var(--ink-3)", Icon: ArrowDown, label: "Low" },
+    high: {
+      color: "var(--critical)",
+      Icon: AlertTriangle,
+      label: t("priority.high"),
+    },
+    medium: { color: "var(--warning)", Icon: Minus, label: t("priority.medium") },
+    low: { color: "var(--ink-3)", Icon: ArrowDown, label: t("priority.low") },
   }[priority];
 
   return (

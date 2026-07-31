@@ -4,12 +4,14 @@ import {
   AlertTriangle,
   Bell,
   Database,
+  Languages,
   Palette,
   RotateCcw,
   Trash2,
   User,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { LanguageSelect, useLanguage } from "@/components/LanguageProvider";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import { Page } from "@/components/layout/Shell";
 import { Badge } from "@/components/ui/Badge";
@@ -25,6 +27,7 @@ type Permission = "default" | "granted" | "denied" | "unsupported";
 
 export default function SettingsPage() {
   const { push } = useToast();
+  const { t, locale } = useLanguage();
   const { data } = useApi<{ user: UserType | null }>("/api/auth/me");
 
   const [permission, setPermission] = useState<Permission>("default");
@@ -45,12 +48,12 @@ export default function SettingsPage() {
     setPermission(result as Permission);
 
     if (result === "granted") {
-      push("Desktop notifications enabled.");
-      new Notification("Routine Organizer", {
-        body: "Reminder alerts are on. You'll see them when something comes due.",
+      push(t("settings.notificationsEnabledToast"));
+      new Notification(t("nav.appName"), {
+        body: t("settings.notificationsTestBody"),
       });
     } else {
-      push("Notifications were not allowed. In-app alerts still work.", "error");
+      push(t("settings.notificationsDeniedToast"), "error");
     }
   }
 
@@ -58,43 +61,46 @@ export default function SettingsPage() {
     setBusy(true);
     try {
       await api.post("/api/demo", { reseed });
-      push(
-        reseed
-          ? "Data reset and example month reloaded."
-          : "All your data was deleted.",
-      );
+      push(reseed ? t("settings.reseedDone") : t("settings.wipeDone"));
     } catch (caught) {
-      push(caught instanceof Error ? caught.message : "Couldn't reset.", "error");
+      push(
+        caught instanceof Error ? caught.message : t("settings.couldntReset"),
+        "error",
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Page title="Settings" subtitle="Account, appearance, alerts and data">
+    <Page title={t("settings.title")} subtitle={t("settings.subtitle")}>
       <div className="grid max-w-3xl gap-4">
         {/* Account */}
         <Card>
           <CardHeader
-            title="Account"
+            title={t("settings.account")}
             icon={<User className="size-4" />}
-            subtitle="Your data is tied to this account and syncs wherever you sign in"
+            subtitle={t("settings.accountSubtitle")}
           />
           <CardBody>
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-ink-3 text-[12px]">Name</dt>
+                <dt className="text-ink-3 text-[12px]">{t("settings.name")}</dt>
                 <dd className="text-ink mt-0.5 text-sm">{data?.user?.name ?? "-"}</dd>
               </div>
               <div>
-                <dt className="text-ink-3 text-[12px]">Email</dt>
+                <dt className="text-ink-3 text-[12px]">{t("settings.email")}</dt>
                 <dd className="text-ink mt-0.5 text-sm">{data?.user?.email ?? "-"}</dd>
               </div>
               <div>
-                <dt className="text-ink-3 text-[12px]">Member since</dt>
+                <dt className="text-ink-3 text-[12px]">
+                  {t("settings.memberSince")}
+                </dt>
                 <dd className="text-ink mt-0.5 text-sm">
+                  {/* Formatted with the selected language's locale, so the date
+                      style matches the rest of the interface. */}
                   {data?.user?.created_at
-                    ? new Date(data.user.created_at).toLocaleDateString()
+                    ? new Date(data.user.created_at).toLocaleDateString(locale)
                     : "-"}
                 </dd>
               </div>
@@ -105,21 +111,33 @@ export default function SettingsPage() {
         {/* Appearance */}
         <Card>
           <CardHeader
-            title="Appearance"
+            title={t("settings.appearance")}
             icon={<Palette className="size-4" />}
-            subtitle="Light, dark, or follow your operating system"
+            subtitle={t("settings.appearanceSubtitle")}
           />
           <CardBody>
             <ThemeToggle />
           </CardBody>
         </Card>
 
+        {/* Language — persisted to localStorage by LanguageProvider. */}
+        <Card>
+          <CardHeader
+            title={t("settings.language")}
+            icon={<Languages className="size-4" />}
+            subtitle={t("settings.languageSubtitle")}
+          />
+          <CardBody>
+            <LanguageSelect />
+          </CardBody>
+        </Card>
+
         {/* Notifications */}
         <Card>
           <CardHeader
-            title="Reminder alerts"
+            title={t("settings.alerts")}
             icon={<Bell className="size-4" />}
-            subtitle="In-app alerts always work. Desktop notifications need your permission."
+            subtitle={t("settings.alertsSubtitle")}
             action={
               <Badge
                 color={
@@ -131,12 +149,12 @@ export default function SettingsPage() {
                 }
               >
                 {permission === "granted"
-                  ? "Enabled"
+                  ? t("settings.permissionEnabled")
                   : permission === "denied"
-                    ? "Blocked"
+                    ? t("settings.permissionBlocked")
                     : permission === "unsupported"
-                      ? "Unsupported"
-                      : "Not enabled"}
+                      ? t("settings.permissionUnsupported")
+                      : t("settings.permissionNotEnabled")}
               </Badge>
             }
           />
@@ -144,25 +162,22 @@ export default function SettingsPage() {
             {permission === "default" && (
               <Button variant="primary" size="sm" onClick={requestNotifications}>
                 <Bell className="size-3.5" />
-                Enable desktop notifications
+                {t("settings.enableNotifications")}
               </Button>
             )}
             {permission === "denied" && (
               <Callout tone="warning">
-                Notifications are blocked for this site. Re-enable them in your
-                browser&apos;s site settings, then reload this page.
+                {t("settings.notificationsBlockedHelp")}
               </Callout>
             )}
             {permission === "granted" && (
               <p className="text-ink-3 text-[13px]">
-                You&apos;ll get a desktop notification when a reminder comes due,
-                as long as this app is open in a tab.
+                {t("settings.notificationsGrantedHelp")}
               </p>
             )}
             {permission === "unsupported" && (
               <p className="text-ink-3 text-[13px]">
-                This browser doesn&apos;t support notifications. In-app alerts still
-                appear.
+                {t("settings.notificationsUnsupportedHelp")}
               </p>
             )}
           </CardBody>
@@ -171,9 +186,9 @@ export default function SettingsPage() {
         {/* Data */}
         <Card>
           <CardHeader
-            title="Data"
+            title={t("settings.data")}
             icon={<Database className="size-4" />}
-            subtitle="Everything is stored in a local SQLite file"
+            subtitle={t("settings.dataSubtitle")}
           />
           <CardBody className="space-y-3">
             <div className="flex flex-wrap gap-2">
@@ -184,7 +199,7 @@ export default function SettingsPage() {
                 loading={busy}
               >
                 <RotateCcw className="size-3.5" />
-                Reload example data
+                {t("settings.reloadExample")}
               </Button>
               <Button
                 variant="secondary"
@@ -193,14 +208,13 @@ export default function SettingsPage() {
                 loading={busy}
               >
                 <Trash2 className="size-3.5" />
-                Delete all my data
+                {t("settings.deleteAll")}
               </Button>
             </div>
             <Callout tone="warning">
               <span className="flex gap-2">
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                Both options wipe your activities, diary, reminders, expenses and
-                workouts first. Neither can be undone.
+                {t("settings.dataWarning")}
               </span>
             </Callout>
           </CardBody>
@@ -212,14 +226,20 @@ export default function SettingsPage() {
         onClose={() => setConfirming(null)}
         onConfirm={() => resetData(confirming === "reseed")}
         title={
-          confirming === "reseed" ? "Reload example data?" : "Delete all your data?"
+          confirming === "reseed"
+            ? t("settings.reseedTitle")
+            : t("settings.wipeTitle")
         }
         message={
           confirming === "reseed"
-            ? "Your current activities, diary entries, reminders, expenses and workouts will be deleted and replaced with the example month."
-            : "Your activities, diary entries, reminders, expenses and workouts will be permanently deleted. Your account stays, but it'll be empty."
+            ? t("settings.reseedMessage")
+            : t("settings.wipeMessage")
         }
-        confirmLabel={confirming === "reseed" ? "Reset and reload" : "Delete everything"}
+        confirmLabel={
+          confirming === "reseed"
+            ? t("settings.reseedConfirm")
+            : t("settings.wipeConfirm")
+        }
       />
     </Page>
   );
